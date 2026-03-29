@@ -6,12 +6,13 @@
 
 - 큰 방향 결정, 범위 조정, 구조 검토는 Claude가 맡는다.
 - 구현, 반복 수정, 테스트, 디버깅은 Codex가 맡는다.
-- 작업 마감 단계에서는 `gstack review`와 `gstack qa`를 사용해 최종 점검한다.
+- 작업 마감 단계에서는 `gstack` setup 이후 노출되는 slash command인 `/review`와 `/qa`를 사용해 최종 점검한다.
 
 ## gstack 운영 원칙
 
 - `gstack`은 전역 설치만 사용하고, repo-local 설치는 하지 않는다.
 - 전역 gstack 기준 경로는 `~/.claude/skills/gstack`이다.
+- `--no-prefix` 기준으로 setup하면 `/office-hours`, `/review`, `/qa`처럼 짧은 slash command 이름을 그대로 사용한다.
 - Claude 설정 명령:
 
 ```bash
@@ -28,6 +29,8 @@ cd ~/.claude/skills/gstack && ./setup --host codex --no-prefix
 
 ```bash
 cd ~/.claude/skills/gstack && git pull --ff-only
+cd ~/.claude/skills/gstack && ./setup --no-prefix
+cd ~/.claude/skills/gstack && ./setup --host codex --no-prefix
 ```
 
 ## 문서와 커밋
