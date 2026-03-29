@@ -1,181 +1,198 @@
-# Gstack Adoption Design
+# gstack 도입 설계
 
-Date: 2026-03-29
-Project: `sora-backend`
-Status: Draft approved in conversation, pending final spec review
+작성일: 2026-03-29
+프로젝트: `sora-backend`
+상태: 대화에서 방향 합의 완료, 최종 spec 검토 대기
 
-## Summary
+## 요약
 
-Adopt `gstack` as a user-global toolchain for agent-assisted development while keeping the frontend and backend repositories fully separate in source control, deployment, and release cadence. Use Claude for high-value planning and decision checkpoints, and use Codex as the primary implementation agent.
+`gstack`을 사용자 전역 도구 체계로 도입하되, 프론트엔드와 백엔드 저장소는 소스 관리, 배포, 릴리즈 주기를 계속 분리해서 운영한다. 중요한 방향 결정과 계획 점검은 Claude에 맡기고, 주요 구현은 Codex를 기본 에이전트로 사용한다.
 
-## Goals
+## 목표
 
-- Introduce `gstack` commands into the working process without changing deployment pipelines.
-- Keep frontend and backend as independent repositories with independent release lifecycles.
-- Support a solo workflow where Claude is used sparingly for important decisions and Codex handles most implementation work.
-- Leave room for additional SKILL.md-compatible agents later without requiring repo restructuring now.
+- 배포 파이프라인을 바꾸지 않고 작업 흐름에 `gstack` 명령을 도입한다.
+- 프론트엔드와 백엔드를 서로 독립된 저장소와 독립된 릴리즈 주기로 유지한다.
+- Claude는 중요한 판단에 아껴 쓰고 Codex가 대부분의 구현을 담당하는 1인 개발 흐름을 만든다.
+- 지금 당장 저장소 구조를 바꾸지 않으면서도, 나중에 추가적인 `SKILL.md` 호환 에이전트를 붙일 여지를 남긴다.
+- 사람이 검토하는 Markdown 문서는 기본적으로 한국어를 우선 사용한다.
+- Markdown 외 산출물도 특별한 이유가 없으면 한국어를 우선 사용한다.
 
-## Non-Goals
+## 비목표
 
-- Do not merge the frontend and backend repositories.
-- Do not install `gstack` into each repository as a committed dependency.
-- Do not make Gemini a first-class supported runtime in the initial rollout.
-- Do not change CI/CD, release automation, or runtime infrastructure as part of this adoption.
+- 프론트엔드와 백엔드 저장소를 합치지 않는다.
+- 각 저장소에 `gstack`을 커밋된 의존성처럼 설치하지 않는다.
+- 초기 도입 단계에서 Gemini를 1급 지원 런타임으로 다루지 않는다.
+- CI/CD, 릴리즈 자동화, 런타임 인프라를 이번 도입 범위에서 변경하지 않는다.
 
-## Context
+## 배경
 
-The current backend repository is intentionally minimal and early-stage. The user expects a separate frontend repository with its own lifecycle and wants to avoid coupling the two codebases through shared deployment or build concerns. The user also wants to conserve Claude usage for critical planning and use Codex for the bulk of implementation work.
+현재 백엔드 저장소는 초기 단계의 최소 구성이다. 사용자는 별도의 프론트엔드 저장소를 전제로 하고 있으며, 두 코드베이스가 배포나 빌드 관점에서 서로 엮이는 것을 원하지 않는다. 또한 Claude의 사용량은 중요한 기획과 판단에 집중하고, 실제 구현은 Codex가 최대한 많이 담당하는 운영 방식을 원한다.
 
-## Decision
+## 결정
 
-Use a single user-global `gstack` source checkout and register it explicitly for Claude and Codex. Keep both application repositories clean of `gstack` installation artifacts. If repository-level guidance is needed, add only lightweight workflow documentation such as an `AGENTS.md` note or short README section.
+단일 사용자 전역 `gstack` 소스 저장소를 두고, Claude와 Codex에 대해서만 명시적으로 등록한다. 애플리케이션 저장소에는 `gstack` 설치 산출물을 넣지 않는다. 저장소 수준의 안내가 필요하면 `AGENTS.md` 또는 README의 짧은 섹션처럼 얇은 운영 문서만 추가한다.
 
-## Installation Model
+## 설치 모델
 
-### Source of truth
+### 단일 기준 저장소
 
-- Keep one shared `gstack` checkout at `~/gstack`.
-- Treat `~/gstack` as the only install and upgrade location.
+- 공통 `gstack` 체크아웃은 `~/gstack` 하나만 유지한다.
+- 설치와 업그레이드는 모두 `~/gstack`만 기준으로 처리한다.
 
-### Agent registration
+### 에이전트 등록
 
-- Register Claude explicitly from `~/gstack` using the default setup flow.
-- Register Codex explicitly from `~/gstack` using `./setup --host codex`.
-- Do not rely on `--host auto` for the primary setup because the intended production usage is specifically Claude plus Codex, and explicit setup is easier to reason about.
+- Claude는 `~/gstack`에서 기본 setup 흐름으로 명시적으로 등록한다.
+- Codex는 `~/gstack`에서 `./setup --host codex`로 명시적으로 등록한다.
+- 주 운영 대상이 Claude와 Codex로 확정되어 있으므로, 기본 등록에는 `--host auto`를 의존하지 않는다.
 
-### Repository boundaries
+### 저장소 경계
 
-- Do not add `.agents/skills/gstack` or equivalent repo-local installs to either repository.
-- Do not commit `gstack` files, generated skills, or runtime assets into the frontend or backend repositories.
-- Keep deployment pipelines unchanged.
+- 두 저장소 모두에 `.agents/skills/gstack` 같은 repo-local 설치를 추가하지 않는다.
+- 프론트엔드와 백엔드 저장소에 `gstack` 파일, 생성된 skill, 런타임 자산을 커밋하지 않는다.
+- 배포 파이프라인은 그대로 유지한다.
 
-## Why This Model
+## 이 모델을 선택한 이유
 
-### Recommended approach: user-global install plus repo-local workflow guidance
+### 권장안: user-global 설치 + repo-local 운영 문서
 
-This approach keeps tooling centralized while preserving the independence of each repository. It avoids duplicate installs, avoids repo churn, and keeps CI/CD untouched. It also matches the desired operating model: one person, multiple repos, separate release lifecycles, and selective use of expensive planning capacity.
+이 접근은 도구는 중앙에서 관리하면서도 저장소 간 독립성을 유지할 수 있다. 중복 설치를 피하고, 저장소 내부 변경을 최소화하며, CI/CD도 건드리지 않는다. 동시에 1인 개발, 다중 저장소, 분리된 릴리즈 주기, Claude 사용량 절약이라는 운영 목표와 잘 맞는다.
 
-### Alternatives considered
+### 고려한 대안
 
-#### User-global only, with no repo documentation
+#### user-global only, 문서 없음
 
-This is operationally simple, but it relies too much on memory. Over time it becomes harder to remember which commands should be used at which stage of work in each repository.
+운영은 가장 단순하지만 기억 의존도가 높다. 시간이 지나면 각 저장소에서 어떤 시점에 어떤 명령을 써야 하는지 흐려질 가능성이 크다.
 
-#### Repo-local install in each repository
+#### 각 저장소 repo-local 설치
 
-This gives each repo a self-contained skill setup, but it adds maintenance duplication and increases the risk of drift between repos. It also conflicts with the goal of avoiding extra operational complexity.
+각 저장소가 자기완결적인 skill 구성을 갖게 되는 장점은 있지만, 설치와 유지보수가 중복되고 저장소 간 드리프트 위험도 커진다. 무엇보다 운영 복잡도를 늘리고 싶지 않다는 현재 목표와 맞지 않는다.
 
-## Role Split Between Claude and Codex
+## Claude와 Codex 역할 분리
 
 ### Claude
 
-Use Claude for work where strategic judgment matters more than raw implementation throughput.
+Claude는 구현 속도보다 전략적 판단이 중요한 일에 사용한다.
 
-Recommended usage:
+권장 사용 예시는 다음과 같다.
 
-- `/office-hours` for early reframing of a feature or product slice
-- `/plan-ceo-review` for scope, wedge selection, and product-direction checks
-- `/plan-eng-review` for architecture, edge cases, and test thinking before execution
-- Important re-checkpoints before large refactors, contract changes, or release-sensitive decisions
+- `/office-hours`: 기능이나 제품 조각을 처음 다시 정의할 때
+- `/plan-ceo-review`: 범위, 진입점, 제품 방향을 점검할 때
+- `/plan-eng-review`: 아키텍처, 엣지 케이스, 테스트 관점을 실행 전에 점검할 때
+- 큰 리팩터, 계약 변경, 릴리즈 민감 변경 전의 재확인 시점
 
 ### Codex
 
-Use Codex as the default implementation engine once direction is approved.
+Codex는 방향이 정해진 뒤의 기본 구현 엔진으로 사용한다.
 
-Recommended usage:
+권장 사용 예시는 다음과 같다.
 
-- Main feature implementation
-- Iterative code changes and debugging
-- Test writing and test repair
-- Running review-oriented commands during normal development
-- Fast follow-up edits after planning decisions are already made
+- 주요 기능 구현
+- 반복적인 코드 수정과 디버깅
+- 테스트 작성과 테스트 보수
+- 일반 개발 과정에서의 review 계열 명령 실행
+- 계획이 정리된 이후의 빠른 후속 수정
 
-### Operating principle
+### 운영 원칙
 
-The default loop is:
+기본 루프는 아래와 같다.
 
-1. Claude clarifies or approves the direction.
-2. Codex implements the approved change.
-3. Codex runs review or QA-oriented follow-through when appropriate.
-4. Claude is brought back only at meaningful decision boundaries.
+1. Claude가 방향을 정리하거나 승인한다.
+2. Codex가 승인된 방향을 구현한다.
+3. Codex가 필요에 따라 review 또는 QA 후속 작업을 수행한다.
+4. 새로운 판단 경계가 생길 때만 Claude를 다시 호출한다.
 
-## Repository Workflow Design
+## 저장소별 워크플로 설계
 
-### Backend repository
+### 백엔드 저장소
 
-Use Claude for API boundary changes, domain-model changes, integration flow decisions, and deployment-impacting choices. Use Codex for service implementation, handlers, tests, fixes, and normal day-to-day development after the plan is set.
+API 경계 변경, 도메인 모델 변경, 통합 흐름 결정, 배포 영향이 있는 선택은 Claude로 판단한다. 방향이 정해진 뒤의 서비스 구현, 핸들러 작성, 테스트, 수정 작업은 Codex가 담당한다.
 
-### Frontend repository
+### 프론트엔드 저장소
 
-Use Claude for UX framing, feature scope, major flow decisions, and larger structural choices. Use Codex for UI implementation, iteration, bug fixing, styling, and follow-up changes after the direction is approved.
+UX 방향, 기능 범위, 큰 흐름 결정, 구조적 선택은 Claude로 정리한다. 화면 구현, 반복 수정, 버그 대응, 스타일링, 승인 이후 후속 변경은 Codex가 담당한다.
 
-### Shared workflow pattern
+### 공통 흐름
 
-For both repositories, the baseline workflow is:
+두 저장소 모두 기본 흐름은 아래와 같다.
 
-1. Start in Claude when the change is ambiguous, high-impact, or cross-cutting.
-2. Move to Codex for implementation once the direction is clear.
-3. Use `gstack` review and QA commands as part of completion rather than as optional extras.
-4. Return to Claude only when a new decision boundary is reached.
+1. 변경이 모호하거나 영향 범위가 크면 Claude에서 시작한다.
+2. 방향이 명확해지면 Codex로 구현을 넘긴다.
+3. `gstack`의 review 및 QA 명령을 마무리 단계의 기본 절차로 사용한다.
+4. 새로운 의사결정 경계가 생길 때만 Claude로 되돌아간다.
 
-## Initial Command Set
+## 초기 명령 세트
 
-Do not adopt the full `gstack` surface area immediately. Start with a narrow set that matches the intended Claude/Codex split.
+처음부터 `gstack`의 전체 표면적을 다 쓰지 않는다. Claude와 Codex의 역할 분리에 맞는 최소 세트부터 시작한다.
 
-### Claude-first commands
+### Claude 중심 명령
 
 - `/office-hours`
 - `/plan-ceo-review`
 - `/plan-eng-review`
 
-### Codex-heavy commands
+### Codex 중심 명령
 
 - `/review`
-- `/qa` when a deployable or browser-verifiable surface exists
+- `/qa`: 배포 가능하거나 브라우저 검증이 필요한 표면이 있을 때
 
-This keeps the first phase simple: thought and planning in Claude, implementation in Codex, and review/verification as a normal close-out step.
+이 구성을 쓰면 초기 단계의 흐름을 단순하게 유지할 수 있다. 생각과 계획은 Claude에서 처리하고, 구현은 Codex에서 진행하며, review와 verification은 마감 단계의 기본 절차로 포함한다.
 
-## Documentation Policy
+## 문서 및 산출물 정책
 
-If repository guidance is added later, keep it lightweight:
+저장소 수준 안내가 필요해져도 문서는 얇게 유지한다.
 
-- One short `AGENTS.md` or README section per repo is enough.
-- The document should describe when to use Claude, when to use Codex, and which `gstack` commands are part of the default workflow.
-- The document should not introduce shared build logic, setup scripts, or repo-local `gstack` installation steps.
+- 저장소마다 짧은 `AGENTS.md` 또는 README 섹션 하나면 충분하다.
+- 문서에는 언제 Claude를 쓰고 언제 Codex를 쓰는지, 그리고 어떤 `gstack` 명령을 기본 흐름으로 삼는지 적는다.
+- 문서 때문에 공통 빌드 로직, setup 스크립트, repo-local `gstack` 설치 절차를 추가하지 않는다.
 
-## Upgrade and Maintenance Policy
+### 문서 언어 정책
 
-- Upgrade only from `~/gstack`.
-- Do not maintain separate copies of `gstack` inside project repositories.
-- Re-run agent registration from the shared install if skills become stale or invalid.
-- Treat Gemini as out of scope for the initial setup. If it becomes important later, validate it separately instead of broadening the initial rollout now.
+- 새로 작성하거나 크게 갱신하는 저장소 Markdown 문서는 기본적으로 한국어로 작성한다.
+- 문서에서는 토큰 절약보다 사람이 읽고 검토하기 쉬운 구성을 우선한다.
+- 코드, 명령어, 경로, 환경 변수, API 이름, 외부 제품명은 원문을 유지하는 편이 더 명확하면 그대로 둔다.
+- 외부 오픈소스 사용자나 제3자 협업자를 위한 문서는 예외적으로 대상 독자에 맞는 언어를 명시적으로 선택한다.
 
-## Risks and Mitigations
+### 커밋 메시지 및 일반 산출물 정책
 
-### Risk: command usage drifts over time
+- 커밋 메시지는 제목과 본문을 포함해 한국어를 우선 사용한다.
+- 문서 외 일반 산출물도 특별한 이유가 없으면 한국어를 우선 사용한다.
+- 다만 코드 식별자, 명령어, 파일 경로, 외부 시스템 고유명사는 필요에 따라 원문을 유지한다.
 
-Mitigation: add a short repo-level workflow note if repeated confusion appears.
+## 업그레이드 및 유지보수 정책
 
-### Risk: Codex and Claude workflows diverge
+- 업그레이드는 `~/gstack`에서만 수행한다.
+- 프로젝트 저장소 안에 별도의 `gstack` 복사본을 유지하지 않는다.
+- skill이 오래되었거나 깨졌다면 공유 설치 위치에서 에이전트 등록을 다시 수행한다.
+- Gemini는 초기 구성 범위에서 제외하고, 필요해질 때 별도로 검증해서 붙인다.
 
-Mitigation: keep the command set intentionally small at first and reserve Claude for specific checkpoints rather than mixed ad hoc usage.
+## 리스크와 대응
 
-### Risk: future multi-agent expansion adds ambiguity
+### 리스크: 명령 사용 방식이 시간이 지나며 흐려짐
 
-Mitigation: keep `~/gstack` as the single source of truth and add new agent registrations one host at a time, only after validating the need.
+대응: 혼선이 반복되면 저장소 수준의 짧은 운영 메모를 추가한다.
 
-## Success Criteria
+### 리스크: Codex와 Claude의 역할이 섞이며 기준이 무너짐
 
-- `gstack` is installed once globally and usable from both the backend and frontend workflows.
-- Frontend and backend remain operationally separate.
-- Claude usage is focused on high-value planning and decision points.
-- Codex becomes the default implementation path.
-- No deployment pipeline changes are required for adoption.
+대응: 초기 명령 세트를 작게 유지하고, Claude는 특정 판단 시점에만 쓰는 원칙을 지킨다.
 
-## Next Step
+### 리스크: 향후 다중 에이전트 확장에서 모호성이 커짐
 
-After this design is approved, create a concrete implementation plan for:
+대응: `~/gstack`를 단일 기준 저장소로 유지하고, 새로운 에이전트 등록은 필요가 검증된 뒤에 하나씩 추가한다.
 
-1. global `gstack` installation and registration
-2. optional repo-level workflow note for `sora-backend`
-3. mirrored lightweight workflow note pattern for the frontend repository
+## 성공 기준
+
+- `gstack`이 전역 1회 설치로 백엔드와 프론트엔드 작업 흐름 모두에서 사용 가능하다.
+- 프론트엔드와 백엔드가 운영상 계속 분리되어 있다.
+- Claude 사용이 중요한 계획과 판단 지점에 집중된다.
+- Codex가 기본 구현 경로가 된다.
+- 도입 때문에 배포 파이프라인 변경이 필요하지 않다.
+- Markdown 문서는 특별한 외부 독자 사유가 없으면 한국어를 기본으로 사용한다.
+- 커밋 메시지와 일반 산출물도 특별한 사유가 없으면 한국어를 우선 사용한다.
+
+## 다음 단계
+
+이 설계가 승인되면 다음 구현 계획을 작성한다.
+
+1. 전역 `gstack` 설치와 Claude/Codex 등록
+2. `sora-backend`용 선택적 저장소 운영 메모 초안
+3. 프론트엔드 저장소에도 적용할 수 있는 동일한 운영 메모 패턴
