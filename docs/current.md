@@ -1,11 +1,11 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-30
-업데이트 주체: Claude
+최종 업데이트: 2026-03-30 23:41
+업데이트 주체: Codex
 
 ## 프로젝트 상태
 
-백엔드 scaffold 완료 + /review 지적 사항 전체 반영. DB 연결(Supabase) 및 TMAP API 키 발급 대기 중.
+백엔드 scaffold 완료 + /review 지적 사항 전체 반영 + healthcheck/e2e 검증 정비 완료. DB 연결(Supabase) 및 TMAP API 키 발급 대기 중.
 
 ## 활성 컨텍스트
 
@@ -16,6 +16,8 @@
 - **주소 입력**: Phase 1은 수동 텍스트. TMAP Geocoding autocomplete는 Phase 2.
 - **transit.service.ts**: TMAP API 연동 골격 작성됨. 실제 좌표(startX/Y, endX/Y) 연동 미완료(Phase 2).
 - **RequestWithUser**: `src/types/request-with-user.ts` — 컨트롤러 req 타입 공통 인터페이스.
+- **healthcheck**: `AppModule`에 `AppController`, `AppService`가 다시 연결되어 `GET /`가 앱 레벨에서도 노출된다.
+- **e2e 테스트**: Prisma 7 generated client의 `import.meta` 문제를 피하도록 PrismaService를 mock하고 현재 응답 계약 `{ status: 'ok' }` 기준으로 검증한다.
 
 ## 작업 체크리스트
 
@@ -41,6 +43,8 @@
 - [x] DeparturesModule (출발 기록 저장, pending 조회, 지각 여부 기록)
 - [x] main.ts: ValidationPipe, CORS 전역 설정
 - [x] README, AGENTS.md, docs/ 문서 체계 수립
+- [x] `GET /` healthcheck 라우트 AppModule 연결 복구
+- [x] `test/app.e2e-spec.ts`를 현재 healthcheck 계약 기준으로 정비
 - [x] /review 지적 사항 전체 반영:
   - P2002 동시 register 409 처리 (auth.service.ts)
   - safeDepatureAt → safeDepartureAt 오타 수정 (transit.service.ts, transit.controller.ts)
