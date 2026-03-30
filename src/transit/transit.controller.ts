@@ -1,7 +1,10 @@
 import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoutesService } from '../routes/routes.service';
+import type { RequestWithUser } from '../types/request-with-user';
 import { TransitService } from './transit.service';
+
+type Route = Awaited<ReturnType<RoutesService['findOne']>>;
 
 @UseGuards(JwtAuthGuard)
 @Controller('transit')
@@ -12,10 +15,13 @@ export class TransitController {
   ) {}
 
   @Get('eta')
-  async getEta(@Request() req, @Query('routeId') routeId?: string) {
-    const userId: string = req.user.id;
+  async getEta(
+    @Request() req: RequestWithUser,
+    @Query('routeId') routeId?: string,
+  ) {
+    const userId = req.user.id;
 
-    let route;
+    let route: Route;
     if (routeId) {
       route = await this.routes.findOne(routeId, userId);
     } else {
@@ -37,7 +43,7 @@ export class TransitController {
       predictedArrivalAt: result.predictedArrivalAt,
       targetArrivalTime: route.targetArrivalTime,
       isLate: result.isLate,
-      safeDepatureAt: result.safeDepatureAt,
+      safeDepartureAt: result.safeDepartureAt,
       bufferMinutes: route.bufferMinutes,
     };
   }

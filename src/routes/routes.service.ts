@@ -42,7 +42,12 @@ export class RoutesService {
     }
 
     return this.prisma.route.create({
-      data: { ...dto, userId, isDefault, bufferMinutes: dto.bufferMinutes ?? 10 },
+      data: {
+        ...dto,
+        userId,
+        isDefault,
+        bufferMinutes: dto.bufferMinutes ?? 10,
+      },
     });
   }
 

@@ -5,7 +5,7 @@
 
 ## 프로젝트 상태
 
-백엔드 scaffold 완료. DB 연결(Supabase) 및 TMAP API 키 발급 대기 중.
+백엔드 scaffold 완료 + /review 지적 사항 전체 반영. DB 연결(Supabase) 및 TMAP API 키 발급 대기 중.
 
 ## 활성 컨텍스트
 
@@ -14,7 +14,8 @@
 - **TMAP**: 서버사이드 프록시 전용. 키는 `.env`의 `TMAP_API_KEY`. 아직 미발급.
 - **Prisma**: schema 작성 완료, `generate` 완료. `migrate`는 DB 연결 후 실행.
 - **주소 입력**: Phase 1은 수동 텍스트. TMAP Geocoding autocomplete는 Phase 2.
-- **transit.service.ts**: TMAP API 연동 골격 작성됨. 실제 좌표(startX/Y, endX/Y) 연동 미완료.
+- **transit.service.ts**: TMAP API 연동 골격 작성됨. 실제 좌표(startX/Y, endX/Y) 연동 미완료(Phase 2).
+- **RequestWithUser**: `src/types/request-with-user.ts` — 컨트롤러 req 타입 공통 인터페이스.
 
 ## 작업 체크리스트
 
@@ -40,3 +41,12 @@
 - [x] DeparturesModule (출발 기록 저장, pending 조회, 지각 여부 기록)
 - [x] main.ts: ValidationPipe, CORS 전역 설정
 - [x] README, AGENTS.md, docs/ 문서 체계 수립
+- [x] /review 지적 사항 전체 반영:
+  - P2002 동시 register 409 처리 (auth.service.ts)
+  - safeDepatureAt → safeDepartureAt 오타 수정 (transit.service.ts, transit.controller.ts)
+  - KST 변환 TODO 주석 추가 (transit.service.ts formatTmapDatetime)
+  - CORS 프로덕션 제한 TODO 주석 (main.ts)
+  - etaMinutes 음수 방어 Math.max(0, ...) (departures.service.ts)
+  - GET / healthcheck 반환값 { status: 'ok' } (app.controller.ts, app.service.ts)
+  - RequestWithUser 공통 타입 (src/types/request-with-user.ts)
+  - ESLint `_`-prefix argsIgnorePattern 추가 (eslint.config.mjs)

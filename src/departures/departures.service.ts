@@ -31,7 +31,9 @@ export class DeparturesService {
 
   async create(userId: string, dto: CreateDepartureDto) {
     // routeId 소유권 확인
-    const route = await this.prisma.route.findUnique({ where: { id: dto.routeId } });
+    const route = await this.prisma.route.findUnique({
+      where: { id: dto.routeId },
+    });
     if (!route) throw new NotFoundException('경로를 찾을 수 없습니다.');
     if (route.userId !== userId) throw new ForbiddenException();
 
@@ -42,8 +44,10 @@ export class DeparturesService {
     targetMs.setHours(targetHH, targetMM, 0, 0);
 
     const predictedLate = predictedArrivalAt.getTime() > targetMs.getTime();
-    const etaMinutes = Math.ceil(
-      (predictedArrivalAt.getTime() - departedAt.getTime()) / 60_000,
+    // predictedArrivalAt < departedAt인 비정상 입력 방어: 0 이하 방지
+    const etaMinutes = Math.max(
+      0,
+      Math.ceil((predictedArrivalAt.getTime() - departedAt.getTime()) / 60_000),
     );
 
     return this.prisma.departureRecord.create({
@@ -59,7 +63,9 @@ export class DeparturesService {
   }
 
   async update(id: string, userId: string, dto: UpdateDepartureDto) {
-    const record = await this.prisma.departureRecord.findUnique({ where: { id } });
+    const record = await this.prisma.departureRecord.findUnique({
+      where: { id },
+    });
     if (!record) throw new NotFoundException();
     if (record.userId !== userId) throw new ForbiddenException();
     if (record.actualLate !== null) {

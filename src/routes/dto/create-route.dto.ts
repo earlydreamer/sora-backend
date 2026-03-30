@@ -1,4 +1,12 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class CreateRouteDto {
   @IsString()
@@ -11,7 +19,9 @@ export class CreateRouteDto {
   destination: string;
 
   @IsString()
-  @Matches(/^\d{2}:\d{2}$/, { message: 'targetArrivalTime must be HH:MM format' })
+  @Matches(/^\d{2}:\d{2}$/, {
+    message: 'targetArrivalTime must be HH:MM format',
+  })
   targetArrivalTime: string;
 
   @IsOptional()

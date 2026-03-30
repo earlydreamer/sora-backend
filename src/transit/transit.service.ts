@@ -9,7 +9,7 @@ interface EtaResult {
   etaMinutes: number;
   predictedArrivalAt: Date;
   isLate: boolean;
-  safeDepatureAt: Date;
+  safeDepartureAt: Date;
 }
 
 @Injectable()
@@ -28,7 +28,9 @@ export class TransitService {
     bufferMinutes: number,
   ): Promise<EtaResult> {
     if (!this.tmapApiKey) {
-      throw new ServiceUnavailableException('TMAP API 키가 설정되지 않았습니다.');
+      throw new ServiceUnavailableException(
+        'TMAP API 키가 설정되지 않았습니다.',
+      );
     }
 
     const now = new Date();
@@ -39,21 +41,23 @@ export class TransitService {
     const isLate = predictedArrivalAt.getTime() > targetMs;
 
     // 안전 출발 시각 = 목표 도착 - eta - 버퍼
-    const safeDepatureAt = new Date(
+    const safeDepartureAt = new Date(
       targetMs - etaMinutes * 60_000 - bufferMinutes * 60_000,
     );
 
-    return { etaMinutes, predictedArrivalAt, isLate, safeDepatureAt };
+    return { etaMinutes, predictedArrivalAt, isLate, safeDepartureAt };
   }
 
-  private async fetchTmapEta(origin: string, destination: string): Promise<number> {
+  // TODO: Phase 2 — origin/destination을 TMAP Geocoding API로 좌표 변환 후 사용
+  private async fetchTmapEta(
+    _origin: string,
+    _destination: string,
+  ): Promise<number> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
 
     try {
-      const url = new URL(
-        'https://apis.openapi.sk.com/transit/routes',
-      );
+      const url = new URL('https://apis.openapi.sk.com/transit/routes');
       const res = await fetch(url.toString(), {
         method: 'POST',
         headers: {
@@ -108,10 +112,10 @@ export class TransitService {
     return target.getTime();
   }
 
+  // TMAP API는 yyyyMMddHHmm 형식 요구. toISOString()은 UTC 기준이므로
+  // 실제 배포 시 KST(+09:00) 오프셋을 적용해야 정확한 시각이 전달됨.
+  // Phase 2에서 KST 변환 처리 예정.
   private formatTmapDatetime(date: Date): string {
-    return date
-      .toISOString()
-      .replace(/[-:T]/g, '')
-      .substring(0, 12);
+    return date.toISOString().replace(/[-:T]/g, '').substring(0, 12);
   }
 }

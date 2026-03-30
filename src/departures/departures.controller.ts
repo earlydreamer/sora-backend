@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import type { RequestWithUser } from '../types/request-with-user';
 import { DeparturesService } from './departures.service';
 import { CreateDepartureDto } from './dto/create-departure.dto';
 import { UpdateDepartureDto } from './dto/update-departure.dto';
@@ -20,7 +21,7 @@ export class DeparturesController {
   constructor(private departures: DeparturesService) {}
 
   @Get()
-  findAll(@Request() req, @Query('status') status?: string) {
+  findAll(@Request() req: RequestWithUser, @Query('status') status?: string) {
     if (status === 'pending') {
       return this.departures.findPending(req.user.id);
     }
@@ -28,14 +29,14 @@ export class DeparturesController {
   }
 
   @Post()
-  create(@Request() req, @Body() dto: CreateDepartureDto) {
+  create(@Request() req: RequestWithUser, @Body() dto: CreateDepartureDto) {
     return this.departures.create(req.user.id, dto);
   }
 
   @Patch(':id')
   update(
     @Param('id') id: string,
-    @Request() req,
+    @Request() req: RequestWithUser,
     @Body() dto: UpdateDepartureDto,
   ) {
     return this.departures.update(id, req.user.id, dto);
