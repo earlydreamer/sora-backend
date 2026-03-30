@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routes           Route[]
+  departureRecords DepartureRecord[]
+}
+
+model Route {
+  id                 String   @id @default(cuid())
+  userId             String
+  name               String
+  origin             String
+  destination        String
+  targetArrivalTime  String   // "HH:MM" format
+  bufferMinutes      Int      @default(10)
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departureRecords DepartureRecord[]
+}
+
+model DepartureRecord {
+  id                  String    @id @default(cuid())
+  userId              String
+  routeId             String
+  departedAt          DateTime
+  predictedArrivalAt  DateTime
+  predictedLate       Boolean
+  actualLate          Boolean?
+  tmapEtaMinutes      Int
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+}
