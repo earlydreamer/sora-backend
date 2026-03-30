@@ -15,7 +15,7 @@ Claude와 Codex의 역할 분리가 실제로 동작하도록, review 이후와 
 - 저장소별 예외는 `AGENTS.md` 하단에서만 관리하는 구조를 제안했다.
 - direct-to-codex 요청을 별도 intake branch로 추가했다.
 - `docs/current.md`와 task 문서 충돌 처리, 저장소 경계 분리 규칙을 spec에 반영했다.
-- 사람이 빠르게 흐름을 이해할 수 있도록 mermaid 기반 도식 설명을 spec에 추가했다.
+- 사람이 빠르게 흐름을 이해할 수 있도록 mermaid 기반 도식 설명을 별도 운영 문서로 분리했다.
 
 ## 결정 사항
 

@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 00:23
+최종 업데이트: 2026-03-31 00:28
 업데이트 주체: Codex
 
 ## 프로젝트 상태
@@ -18,7 +18,7 @@
 - **RequestWithUser**: `src/types/request-with-user.ts` — 컨트롤러 req 타입 공통 인터페이스.
 - **healthcheck**: `AppModule`에 `AppController`, `AppService`가 다시 연결되어 `GET /`가 앱 레벨에서도 노출된다.
 - **e2e 테스트**: Prisma 7 generated client의 `import.meta` 문제를 피하도록 PrismaService를 mock하고 현재 응답 계약 `{ status: 'ok' }` 기준으로 검증한다.
-- **운영 하네스**: Claude와 Codex를 상태 + 산출물 기반으로 연결하는 handoff harness spec 초안을 `docs/superpowers/specs/2026-03-30-agent-handoff-harness-design.md`에 정리했고, direct-to-codex 진입, 상태 충돌 처리, 사람용 도식 설명까지 반영했다.
+- **운영 하네스**: Claude와 Codex를 상태 + 산출물 기반으로 연결하는 handoff harness spec 초안을 `docs/superpowers/specs/2026-03-30-agent-handoff-harness-design.md`에 정리했고, 사람용 개요와 도식은 `docs/operations/agent-handoff-harness-overview.md`로 분리했다.
 
 ## 작업 체크리스트
 
