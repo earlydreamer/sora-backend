@@ -91,6 +91,59 @@ Claude가 Codex에 작업을 넘길 때는 아래 형식으로 작업 범위를 
 - 에이전트가 생성한 커밋이 이 규칙을 위반하면 rebase로 정정한 뒤 push한다.
 - 자동화 도중 규칙 위반이 감지되면 작업을 중단하고 Claude에 보고한다.
 
+### 2-5. GitHub Issue 규칙
+- 신규 작업은 시작 전에 반드시 한국어 GitHub issue를 생성한다.
+- issue 제목은 한 줄 요약으로 작성한다.
+- issue 본문은 최소한 `배경`, `목표`, `범위`, `완료 조건` 섹션을 포함한다.
+- 완료 조건에는 저장소 필수 검증 명령을 체크리스트로 넣는다.
+
+예시:
+```md
+## 배경
+- handoff harness에 GitHub 작업 파이프라인을 추가해야 한다.
+
+## 목표
+- issue 생성 → 브랜치 작업 → PR → merge → 정리 흐름을 문서와 skill에 반영한다.
+
+## 범위
+- AGENTS.md
+- docs/operations/
+- start-harness skill
+
+## 완료 조건
+- [ ] `npm run build`
+- [ ] `npm run lint`
+- [ ] `CI=1 npm test -- --runInBand`
+- [ ] `CI=1 npm run test:e2e -- --runInBand`
+```
+
+### 2-6. GitHub Pull Request 규칙
+- PR 제목과 본문은 한국어로 작성한다.
+- PR 본문은 최소한 `요약`, `검증`, `연결 이슈` 섹션을 포함한다.
+- `연결 이슈`에는 `Closes #<번호>`를 사용해 merge 시 issue가 자동으로 닫히게 한다.
+
+예시:
+```md
+## 요약
+- GitHub issue/PR 기반 작업 파이프라인을 backend 문서와 skill에 반영했다.
+
+## 검증
+- [x] `npm run build`
+- [x] `npm run lint`
+- [x] `CI=1 npm test -- --runInBand`
+- [x] `CI=1 npm run test:e2e -- --runInBand`
+
+## 연결 이슈
+- Closes #123
+```
+
+### 2-7. 브랜치와 merge 규칙
+- 브랜치명은 `codex/<issue-number>-brief-slug` 형식을 사용한다.
+- 작업은 issue에 연결된 브랜치에서만 진행한다.
+- 검증이 모두 통과하기 전에는 PR merge를 진행하지 않는다.
+- merge 완료 후 issue, PR, 로컬 브랜치, 원격 브랜치가 남아 있으면 작업 완료로 간주하지 않는다.
+- GitHub 작업 절차 상세는 [docs/operations/github-task-pipeline.md](./docs/operations/github-task-pipeline.md)를 따른다.
+
 ---
 
 ## 3. 문서 구조 규칙 〔공통〕
