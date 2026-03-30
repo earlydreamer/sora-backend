@@ -6,13 +6,14 @@
 
 ## 요약
 
-`gstack`과 `superpowers`를 함께 쓰되, Claude와 Codex가 서로 다른 CLI라는 현실을 전제로 공통 하네스 계약을 문서로 고정한다. 핵심은 `/review` 자체가 아니라 Claude가 남기는 `codex-ready` 산출물을 Codex 실행의 유일한 시작 신호로 삼는 것이다. 이 계약은 두 저장소 모두에 동일하게 적용하되, 각 저장소는 혼자 로컬에 있어도 문서만 읽으면 완결된 흐름을 재현할 수 있어야 한다.
+`gstack`과 `superpowers`를 함께 쓰되, Claude와 Codex가 서로 다른 CLI라는 현실을 전제로 공통 하네스 계약을 문서로 고정한다. 핵심은 `/review` 자체가 아니라 `codex-ready` 산출물을 Codex 실행의 유일한 시작 신호로 삼는 것이다. 이 산출물은 보통 Claude가 남기지만, direct-to-codex 요청에서도 Codex가 안전한 intake를 거쳐 직접 만들 수 있다. 이 계약은 두 저장소 모두에 동일하게 적용하되, 각 저장소는 혼자 로컬에 있어도 문서만 읽으면 완결된 흐름을 재현할 수 있어야 한다.
 
 ## 목표
 
 - Claude는 판단, 범위 조정, 리뷰 해석, 위임 스펙 작성만 담당하고 구현은 하지 않는 흐름을 강제한다.
 - Codex는 `codex-ready` 상태의 작업만 이어받아 구현하고, 필요하면 superpowers 기반으로 하위 작업을 분해한다.
 - `/review`를 거친 후속 수정뿐 아니라 일반 구현 요청, 설계 승인 후 구현, 미완료 작업 재개도 하나의 상태 머신으로 흡수한다.
+- 사용자가 Claude가 아니라 Codex에게 직접 요청해도, 같은 상태 머신 안에서 안전하게 intake하고 실행 여부를 판단할 수 있어야 한다.
 - 백엔드와 프론트엔드가 별도 저장소여도 같은 계약으로 동작하게 한다.
 - 둘 중 하나의 저장소만 로컬에 있어도 하네스 규칙이 깨지지 않게 한다.
 
@@ -31,7 +32,7 @@
 
 ## 결정
 
-공통 계약은 `명령 기반`이 아니라 `상태 + 산출물 기반`으로 설계한다. Claude가 리뷰 결과나 사용자 요청을 해석해 구현이 필요하다고 판단하면, 직접 코드를 수정하지 않고 `Codex 위임 작업` 형식의 문서를 작성한다. 이 문서가 생성되고 `docs/current.md`에 현재 상태가 `codex-ready`로 반영될 때만 Codex가 구현을 시작할 수 있다.
+공통 계약은 `명령 기반`이 아니라 `상태 + 산출물 기반`으로 설계한다. Claude가 리뷰 결과나 사용자 요청을 해석해 구현이 필요하다고 판단하면, 직접 코드를 수정하지 않고 `Codex 위임 작업` 형식의 문서를 작성한다. direct-to-codex 요청에서는 Codex가 먼저 intake를 수행해 안전한 범위인지 분류하고, 허용되는 경우에만 같은 형식의 산출물을 스스로 작성한다. 이 문서가 생성되고 `docs/current.md`에 현재 상태가 `codex-ready`로 반영될 때만 Codex가 구현을 시작할 수 있다.
 
 `/review`는 `codex-ready` 상태를 만드는 여러 입력 중 하나다. 즉, review를 거치지 않은 요청이라도 Claude가 triage 후 충분한 구현 맥락을 정리해 `codex-ready` 산출물을 만들면 Codex가 바로 이어받을 수 있어야 한다.
 
@@ -43,6 +44,7 @@
 - `claude-triage`: Claude가 요청의 성격을 분류하고 구현 필요 여부를 판단하는 상태
 - `claude-docs-only`: 코드 변경 없이 문서나 정책만 수정하면 되는 상태
 - `claude-handoff-drafting`: Claude가 Codex 위임 스펙을 작성하는 상태
+- `codex-direct-intake`: 사용자가 Codex에게 직접 요청했을 때, Codex가 실행 가능성과 재판단 필요 여부를 분류하는 상태
 - `codex-ready`: Codex가 실행할 수 있는 산출물이 준비된 상태
 - `codex-in-progress`: Codex가 구현 중인 상태
 - `codex-reviewing`: Codex가 review, verification, QA를 수행하는 상태
@@ -54,10 +56,14 @@
 | 현재 상태 | 트리거 | 다음 상태 |
 |---|---|---|
 | `intake-open` | 새 요청 수신 | `claude-triage` |
+| `intake-open` | 새 요청이 Codex에 직접 전달됨 | `codex-direct-intake` |
 | `claude-triage` | 코드 변경 불필요 | `claude-docs-only` |
 | `claude-triage` | 코드 변경 필요, 방향 명확 | `claude-handoff-drafting` |
 | `claude-triage` | 아키텍처/범위 판단 필요 | Claude 설계 절차 유지 |
 | `claude-handoff-drafting` | 위임 스펙과 상태판 갱신 완료 | `codex-ready` |
+| `codex-direct-intake` | 기존 활성 작업 재개 가능 | `codex-in-progress` |
+| `codex-direct-intake` | 안전한 direct 구현 가능, intake spec 작성 완료 | `codex-ready` |
+| `codex-direct-intake` | Claude 재판단 필요 | `needs-claude-decision` |
 | `codex-ready` | Codex 실행 시작 | `codex-in-progress` |
 | `codex-in-progress` | 구현 완료 후 검증 시작 | `codex-reviewing` |
 | `codex-in-progress` | 결정 경계 도달 | `needs-claude-decision` |
@@ -96,6 +102,36 @@
 - 이전에 생성된 활성 작업 스펙이 있고 `docs/current.md`에 상태가 `codex-ready` 또는 `codex-in-progress`로 남아 있으면, Codex는 같은 스펙을 읽고 재개할 수 있다.
 - 이 재개 흐름은 review 명령 이력에 의존하지 않는다.
 
+### 6. direct-to-codex 요청
+
+- 사용자가 Claude가 아니라 Codex에게 직접 구현 요청을 넣을 수 있다.
+- 이 경우 Codex는 곧바로 코드 수정으로 들어가지 않고 먼저 `codex-direct-intake`를 수행한다.
+- direct intake의 첫 단계는 항상 아래 세 문서를 읽는 것이다.
+  - `AGENTS.md`
+  - `docs/current.md`
+  - `docs/tasks/`의 활성 스펙 또는 관련 기존 스펙
+- 기존 활성 작업이 있고 상태가 `codex-ready` 또는 `codex-in-progress`이면 그 작업을 재개할 수 있다.
+- 기존 활성 작업이 없으면 Codex는 요청을 아래 셋 중 하나로 분류한다.
+  - `docs-only`: 문서나 설명만 수정하면 되는 경우
+  - `direct-codex-safe`: Codex가 자체 intake spec을 만든 뒤 안전하게 구현할 수 있는 경우
+  - `needs-claude-decision`: 범위나 구조 판단이 필요해 Claude 재판단이 필요한 경우
+- `direct-codex-safe`로 판단되면 Codex는 먼저 최소 위임 스펙을 작성하고 `docs/current.md`를 `codex-ready`로 갱신한 뒤 구현을 시작한다.
+- `needs-claude-decision`으로 판단되면 Codex는 구현을 시작하지 않고 상태와 이유를 문서에 남긴다.
+
+## direct-to-codex safe 구현 기준
+
+Codex가 직접 intake 후 구현해도 되는 작업은 아래 조건을 모두 만족해야 한다.
+
+- 기존 파일 또는 이미 존재하는 모듈 안에서 끝나는 좁은 변경이다.
+- 새 아키텍처 결정이 필요 없다.
+- DB 스키마 변경이 필요 없다.
+- 외부 API 계약 변경이 필요 없다.
+- 공용 라우팅, 디자인 시스템, 전역 상태 관리 방식 변경이 필요 없다.
+- 하나의 저장소 안에서 끝난다.
+- 완료 조건이 로컬 검증 명령으로 명확하게 확인 가능하다.
+
+위 조건 중 하나라도 애매하면 `needs-claude-decision`으로 올리는 것이 기본값이다.
+
 ## 산출물 계약
 
 ### Codex 실행 게이트
@@ -106,6 +142,8 @@ Codex의 구현 시작 조건은 다음 두 항목이 모두 만족되는 경우
 2. `docs/current.md`에 현재 상태가 `codex-ready`로 기록되어 있다.
 
 즉, `gstack /review`가 실행되었더라도 위 두 조건이 없으면 Codex는 구현을 시작하면 안 된다.
+
+direct-to-codex 요청에서도 이 게이트는 동일하게 적용된다. 차이는 위임 스펙의 작성 주체가 Claude가 아니라 Codex일 수 있다는 점뿐이다.
 
 ### 위임 스펙 위치
 
@@ -160,6 +198,28 @@ docs/tasks/YYYY-MM-DD-<slug>.md
 
 이 섹션은 두 저장소 모두 같은 형식으로 유지하고, 저장소별 예외는 `AGENTS.md`에 둔다.
 
+### 상태 진실 원천과 충돌 처리
+
+- 현재 활성 상태의 진실 원천은 `docs/current.md`다.
+- 실행 스펙의 내용 진실 원천은 해당 `docs/tasks/*.md` 문서다.
+- `docs/current.md`에 활성 스펙 경로가 적혀 있는데 실제 파일이 없으면 구현을 시작하지 않는다.
+- `docs/current.md`의 상태와 스펙 문서의 상태가 충돌하면, 먼저 문서를 정규화하고 나서만 다음 단계로 간다.
+- 한 저장소에는 동시에 하나의 활성 구현 스펙만 유지하는 것을 기본값으로 한다.
+
+### 저장소 경계 규칙
+
+- 하나의 활성 스펙은 하나의 저장소만 담당한다.
+- 백엔드와 프론트엔드를 동시에 바꾸는 작업은 하나의 통합 구현 스펙으로 처리하지 않는다.
+- 저장소를 넘는 요청은 저장소별 스펙 두 개로 나눈다.
+- 둘 중 하나의 저장소만 로컬에 있는 경우, 현재 저장소에서 수행 가능한 범위만 스펙에 적고 반대편 저장소는 후속 작업으로 분리한다.
+
+### 사용자 명시 지시와 게이트의 관계
+
+- 사용자가 Codex에게 직접 요청하는 것은 유효한 진입점이다.
+- 하지만 direct-to-codex 요청이 intake와 문서 게이트를 우회하는 허가를 의미하지는 않는다.
+- 마찬가지로 사용자가 Claude에게 직접 구현을 요청하더라도, 코드 변경이 필요한 작업에서 Claude가 바로 구현해도 된다는 의미로 자동 해석하지 않는다.
+- 사용자의 명시 지시가 기존 하네스 규칙을 우회해야 할 정도로 강하면, 해당 우회 의도를 문서에 짧게 남기고 진행한다.
+
 ## Claude 규칙
 
 ### 공통 금지
@@ -183,6 +243,7 @@ docs/tasks/YYYY-MM-DD-<slug>.md
 - `codex-ready` 상태의 활성 스펙이 있는 경우에만 구현을 시작한다.
 - 단순히 "이전 Claude 세션을 이어서 하자"는 문장만으로는 구현을 시작하지 않는다.
 - 먼저 `AGENTS.md`, `docs/current.md`, 활성 작업 스펙을 읽어야 한다.
+- direct-to-codex 요청에서는 intake 결과가 `direct-codex-safe`일 때만 Codex가 자체적으로 활성 스펙을 생성할 수 있다.
 
 ### 실행 원칙
 
@@ -200,6 +261,8 @@ docs/tasks/YYYY-MM-DD-<slug>.md
 - 외부 API 계약 변경이 필요한 경우
 - 새 전역 모듈 또는 새로운 공용 패턴 도입이 필요한 경우
 - 기존 위임 스펙의 범위를 벗어나는 확장이 필요한 경우
+- `docs/current.md`와 활성 스펙의 상태가 서로 충돌하는 경우
+- 현재 저장소 바깥의 다른 저장소 변경 없이는 작업이 끝나지 않는 경우
 
 ## gstack과 superpowers의 역할 매핑
 
@@ -290,6 +353,18 @@ docs/tasks/YYYY-MM-DD-<slug>.md
 
 대응: `/review`를 특수 케이스가 아니라 여러 진입점 중 하나로 정의한다.
 
+### 리스크: direct-to-codex 요청이 intake 없이 즉시 구현으로 흘러감
+
+대응: direct-to-codex도 별도 상태 `codex-direct-intake`를 거치게 하고, 자체 작성한 intake spec 없이는 시작하지 못하게 한다.
+
+### 리스크: `docs/current.md`와 task 문서가 어긋나며 잘못된 작업을 재개함
+
+대응: 상태 진실 원천과 충돌 처리 규칙을 명시하고, 충돌 시에는 구현보다 문서 정규화를 먼저 수행한다.
+
+### 리스크: 한 작업이 두 저장소를 동시에 건드리며 경계가 흐려짐
+
+대응: 활성 스펙은 저장소당 하나만 유지하고, 교차 저장소 작업은 저장소별 스펙으로 분리한다.
+
 ### 리스크: 두 저장소 규칙이 시간이 지나며 드리프트함
 
 대응: 공통 상태 전이와 위임 형식은 동일 문장으로 유지하고, 차이는 저장소별 예외 섹션으로만 한정한다.
@@ -302,6 +377,7 @@ docs/tasks/YYYY-MM-DD-<slug>.md
 
 - `/review` 이후 Claude가 바로 구현하는 흐름이 문서상 금지되고, 실제 기본 행동이 위임 스펙 작성으로 바뀐다.
 - review를 거치지 않은 구현 요청도 같은 상태 머신으로 `codex-ready`까지 전이할 수 있다.
+- direct-to-codex 요청도 intake와 산출물 게이트를 거친 뒤에만 구현으로 넘어간다.
 - Codex는 활성 위임 스펙이 없는 한 구현을 시작하지 않는다.
 - 백엔드와 프론트엔드 중 하나의 저장소만 로컬에 있어도 같은 문서 계약을 재현할 수 있다.
 - 향후 자동화 스크립트를 붙이더라도 계약 변경 없이 읽기만 하면 되는 수준의 산출물 구조가 준비된다.
