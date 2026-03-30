@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-30 23:41
+최종 업데이트: 2026-03-30 23:58
 업데이트 주체: Codex
 
 ## 프로젝트 상태
@@ -18,6 +18,7 @@
 - **RequestWithUser**: `src/types/request-with-user.ts` — 컨트롤러 req 타입 공통 인터페이스.
 - **healthcheck**: `AppModule`에 `AppController`, `AppService`가 다시 연결되어 `GET /`가 앱 레벨에서도 노출된다.
 - **e2e 테스트**: Prisma 7 generated client의 `import.meta` 문제를 피하도록 PrismaService를 mock하고 현재 응답 계약 `{ status: 'ok' }` 기준으로 검증한다.
+- **운영 하네스**: Claude와 Codex를 상태 + 산출물 기반으로 연결하는 handoff harness spec 초안을 `docs/superpowers/specs/2026-03-30-agent-handoff-harness-design.md`에 정리했다.
 
 ## 작업 체크리스트
 
@@ -45,6 +46,7 @@
 - [x] README, AGENTS.md, docs/ 문서 체계 수립
 - [x] `GET /` healthcheck 라우트 AppModule 연결 복구
 - [x] `test/app.e2e-spec.ts`를 현재 healthcheck 계약 기준으로 정비
+- [x] Claude-Codex handoff harness 공통 spec 초안 작성
 - [x] /review 지적 사항 전체 반영:
   - P2002 동시 register 409 처리 (auth.service.ts)
   - safeDepatureAt → safeDepartureAt 오타 수정 (transit.service.ts, transit.controller.ts)
