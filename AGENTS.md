@@ -54,6 +54,15 @@ Claude가 Codex에 작업을 넘길 때는 아래 형식으로 작업 범위를 
 **참고**: <아키텍처 맥락, 주의사항>
 ```
 
+### 1-4. handoff harness 강제 규칙
+
+- Claude는 `/review` 여부와 관계없이 코드 변경이 필요한 작업을 직접 구현하지 않는다.
+- 구현 시작 게이트는 slash command가 아니라 `docs/current.md`의 상태와 `docs/tasks/`의 활성 스펙이다.
+- Codex는 `codex-ready` 상태의 활성 스펙이 있거나, direct-to-codex intake에서 스스로 `direct-codex-safe`로 분류한 경우에만 구현을 시작한다.
+- direct-to-codex 요청도 intake와 문서 게이트를 우회할 수 없다.
+- 한 저장소에는 동시에 하나의 활성 구현 스펙만 유지한다.
+- 저장소를 넘는 작업은 하나의 통합 스펙으로 처리하지 않고 저장소별 작업으로 분리한다.
+
 ---
 
 ## 2. 커밋 규칙 〔공통〕
@@ -101,6 +110,7 @@ docs/
   operations/   ← 설치·운영·배포 절차 (영구 문서)
   decisions/    ← 아키텍처·기술 결정 기록 (ADR 형식)
   history/      ← 세션별 작업 기록 (누적)
+  tasks/        ← Claude 또는 Codex intake가 만드는 활성 구현 스펙
 ```
 
 ### 3-3. 파일 네이밍
@@ -138,6 +148,12 @@ docs/current.md
 
 ## 활성 컨텍스트
 <지금 이 시점에서 중요한 결정·제약·전제 조건 요약>
+
+## 하네스 상태
+- 상태: <claude-triage / codex-ready / codex-in-progress / needs-claude-decision / done>
+- 현재 담당: Claude / Codex / 사람
+- 활성 스펙: <docs/tasks/... 또는 없음>
+- Claude 재판단 필요: 없음 / 있음
 
 ## 작업 체크리스트
 
@@ -232,6 +248,14 @@ docs/history/YYYY-MM-DD-<slug>.md
 - 범위가 애매하면 **작게 실행하고 Claude에 보고**한다.
 - 삭제·덮어쓰기보다 추가를 우선한다.
 - 확신 없는 아키텍처 결정은 TODO 주석으로 표시하고 멈춘다.
+
+### 5-4. 리뷰 루프 제한
+- 같은 파일 또는 같은 task에서 reviewer 수정 루프는 최대 2회까지만 반복한다.
+- 2회 이후 남는 피드백은 `blocking`과 `non-blocking`으로 나눈다.
+- `blocking`은 계약 위반, 잘못된 상태 전이, 안전 문제, 실행 불가 상태처럼 결과를 깨는 항목만 포함한다.
+- `non-blocking`은 표현 개선, 추가 명확화, 스타일 선호, 확장 제안처럼 당장 실행을 막지 않는 항목이다.
+- 2회 이후에는 `blocking`만 한 번 더 수정하고, `non-blocking`은 후속 작업이나 기록으로 넘긴 뒤 다음 단계로 진행한다.
+- 같은 지점에서 30분 이상 정체되면 controller가 루프를 종료하고 현재 최선 버전을 커밋하거나 후속 작업으로 분리한다.
 
 ---
 
