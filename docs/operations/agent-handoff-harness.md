@@ -29,6 +29,8 @@ bootstrap 시점에는 먼저 `docs/tasks/` 디렉터리와 `docs/current.md`의
 ## 기본 원칙
 
 - 구현 시작 게이트는 slash command가 아니라 `docs/current.md`의 상태와 `docs/tasks/`의 활성 작업 문서다.
+- `/start-harness`는 일반 triage 래퍼가 아니라 오케스트레이터다. 명령어와 프롬프트를 함께 읽고, 지원되는 skill/명령 중 가장 적절한 흐름을 먼저 선택한 뒤 하네스 상태 갱신으로 이어가야 한다.
+- 이 오케스트레이션은 superpowers, gstack, 저장소 운영 문서에 적힌 workflow, 기타 현재 환경에서 사용 가능한 skill/명령 전체를 함께 비교해 결정한다.
 - Claude는 코드 변경이 필요한 요청에서 직접 구현하지 않는다.
 - Codex는 활성 작업 문서 없이 구현을 시작하지 않는다.
 - 이 문서에서 말하는 작업 스펙, 활성 작업 문서, work spec, intake spec은 모두 `docs/tasks/YYYY-MM-DD-<slug>.md` 형식의 같은 운영 산출물을 뜻한다.
@@ -80,6 +82,8 @@ Claude가 handoff 스펙을 완성하면 작업 스펙의 `**상태**`와 `docs/
 ### 2. direct-to-codex 요청
 
 - 먼저 `AGENTS.md`, `docs/current.md`, 기존 활성 스펙을 읽는다.
+- 프롬프트에 명시된 slash command, review/qa/debugging 의도, gstack workflow, 기타 명확한 specialist skill 후보를 먼저 분류한다.
+- 더 구체적인 skill/명령이 있으면 generic intake 전에 그 흐름을 먼저 트리거한다. 여러 후보가 맞으면 최소 체인으로 연결하고, 독립 분석 축이 있으면 subagent 사용도 적극 검토한다.
 - 기존 활성 스펙이 있고 `docs/current.md`가 `codex-ready` 또는 `codex-in-progress`처럼 재개 가능한 상태이며, 작업 스펙에 `**상태**`, 수정 대상 파일, 완료 조건, Claude 재호출 조건이 모두 있으면 그 작업을 재개한다.
 - 재개 가능한 상태여도 작업 스펙 필수 필드가 비어 있거나 불완전하면 `needs-claude-decision`으로 정리하고 멈춘다.
 - 그 외 상태라면 작업 스펙의 `**상태**`와 경로를 첫 번째 기준으로 `docs/current.md`를 정규화한다. 담당자 규칙은 `claude-triage`, `needs-claude-decision`이면 Claude, `codex-in-progress`면 Codex, `done`이면 사람이다. `codex-ready`는 생성 경로를 따라 일반 handoff면 Claude, direct-codex-safe면 Codex로 둔다. 스펙이 없거나 불완전하면 `needs-claude-decision`으로 두고 멈춘다.

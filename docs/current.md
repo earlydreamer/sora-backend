@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 01:31
+최종 업데이트: 2026-03-31 03:01
 업데이트 주체: Codex
 
 ## 프로젝트 상태
@@ -19,7 +19,9 @@
 - **healthcheck**: `AppModule`에 `AppController`, `AppService`가 다시 연결되어 `GET /`가 앱 레벨에서도 노출된다.
 - **e2e 테스트**: Prisma 7 generated client의 `import.meta` 문제를 피하도록 PrismaService를 mock하고 현재 응답 계약 `{ status: 'ok' }` 기준으로 검증한다.
 - **운영 하네스**: `docs/operations/agent-handoff-harness.md`, `docs/operations/agent-handoff-harness-overview.md`, `docs/tasks/`, `AGENTS.md`에 backend 저장소용 handoff harness 규칙을 반영했다.
+- **start-harness 오케스트레이션**: `/start-harness`는 전달된 명령과 프롬프트를 기준으로 superpowers, gstack, repo-local workflow, 기타 지원 skill/명령 중 가장 적절한 흐름을 먼저 고른 뒤 하네스를 이어간다.
 - **리뷰 루프 제한**: 같은 파일/같은 task에서 reviewer 수정 루프는 최대 2회까지만 반복하고, 이후에는 blocking 이슈만 추가 수정한 뒤 다음 단계로 진행한다.
+- **리뷰 기준**: Windows/Linux/Unix 환경 차이에서만 생기는 인코딩, 개행 문자, 실행 비트 차이는 무시하고 실제 코드 동작 변경만 검토한다.
 - **GitHub 파이프라인**: 신규 작업은 `gh` 기반 한국어 issue 생성 → `codex/<issue-number>-brief-slug` 브랜치 작업 → 한국어 PR → `main` merge → issue/PR/브랜치 정리 순서로 진행한다.
 
 ## 하네스 상태
@@ -60,6 +62,8 @@
 - [x] AGENTS에 handoff harness 게이트와 리뷰 루프 제한 반영
 - [x] `docs/tasks/` handoff 템플릿 및 사용 규칙 추가
 - [x] GitHub issue/PR 기반 작업 파이프라인 문서화
+- [x] `/start-harness`가 superpowers/gstack/지원 skill 전체를 대상으로 가장 적절한 흐름을 먼저 선택하도록 오케스트레이션 규칙 강화
+- [x] 리뷰 시 OS별 인코딩/개행/실행 비트 차이는 무시하고 실제 코드 변경만 보도록 지침 추가
 - [x] /review 지적 사항 전체 반영:
   - P2002 동시 register 409 처리 (auth.service.ts)
   - safeDepatureAt → safeDepartureAt 오타 수정 (transit.service.ts, transit.controller.ts)
