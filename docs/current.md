@@ -1,11 +1,11 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 01:27
+최종 업데이트: 2026-03-31 01:31
 업데이트 주체: Codex
 
 ## 프로젝트 상태
 
-백엔드 scaffold 완료 + /review 지적 사항 전체 반영 + handoff harness 운영 문서/게이트/템플릿 반영 완료. DB 연결(Supabase) 및 TMAP API 키 발급 대기 중.
+백엔드 scaffold 완료 + handoff harness/GitHub 작업 파이프라인 반영 완료. DB 연결(Supabase) 및 TMAP API 키 발급 대기 중.
 
 ## 활성 컨텍스트
 
@@ -20,6 +20,7 @@
 - **e2e 테스트**: Prisma 7 generated client의 `import.meta` 문제를 피하도록 PrismaService를 mock하고 현재 응답 계약 `{ status: 'ok' }` 기준으로 검증한다.
 - **운영 하네스**: `docs/operations/agent-handoff-harness.md`, `docs/operations/agent-handoff-harness-overview.md`, `docs/tasks/`, `AGENTS.md`에 backend 저장소용 handoff harness 규칙을 반영했다.
 - **리뷰 루프 제한**: 같은 파일/같은 task에서 reviewer 수정 루프는 최대 2회까지만 반복하고, 이후에는 blocking 이슈만 추가 수정한 뒤 다음 단계로 진행한다.
+- **GitHub 파이프라인**: 신규 작업은 `gh` 기반 한국어 issue 생성 → `codex/<issue-number>-brief-slug` 브랜치 작업 → 한국어 PR → `main` merge → issue/PR/브랜치 정리 순서로 진행한다.
 
 ## 하네스 상태
 - 상태: done
@@ -58,6 +59,7 @@
 - [x] handoff harness 운영 절차 문서 추가
 - [x] AGENTS에 handoff harness 게이트와 리뷰 루프 제한 반영
 - [x] `docs/tasks/` handoff 템플릿 및 사용 규칙 추가
+- [x] GitHub issue/PR 기반 작업 파이프라인 문서화
 - [x] /review 지적 사항 전체 반영:
   - P2002 동시 register 409 처리 (auth.service.ts)
   - safeDepatureAt → safeDepartureAt 오타 수정 (transit.service.ts, transit.controller.ts)
