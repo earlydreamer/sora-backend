@@ -1,0 +1,186 @@
+#!/bin/bash
+# dashboard: TUI status board for tmux orchestration workers
+
+set -euo pipefail
+
+source "$(dirname "$0")/lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: dashboard [OPTIONS]
+
+TUI status board for tmux orchestration workers.
+
+Options:
+  --once          Single snapshot output then exit
+  --json          JSON output for programmatic use
+  --help          Show this help message
+
+Default behavior:
+  Runs watch -n 5 to refresh every 5 seconds.
+  Use --once to print a single snapshot and exit.
+  Use --json for machine-readable JSON output.
+
+Examples:
+  dashboard              # Live view (refreshes every 5 seconds)
+  dashboard --once       # Single snapshot
+  dashboard --json       # JSON output
+
+EOF
+}
+
+once=0
+output_json=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --once)
+      once=1
+      shift
+      ;;
+    --json)
+      output_json=1
+      shift
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      log_error "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# If neither --once nor --json, run watch
+if [ $once -eq 0 ] && [ $output_json -eq 0 ]; then
+  exec watch -n 5 "\"$(realpath "$0")\" --once"
+fi
+
+ensure_dirs
+
+# Gather worker data
+workers_data=()
+worker_ids=()
+worker_agents=()
+worker_slugs=()
+worker_statuses=()
+worker_task_refs=()
+worker_retry_counts=()
+worker_max_retries=()
+
+for worker_file in "${WORKERS_DIR}"/worker-*.json; do
+  if [ ! -f "$worker_file" ]; then
+    continue
+  fi
+  wid=$(jq -r '.worker_id // "unknown"' "$worker_file" 2>/dev/null)
+  wagent=$(jq -r '.agent // "unknown"' "$worker_file" 2>/dev/null)
+  wstatus=$(jq -r '.status // "unknown"' "$worker_file" 2>/dev/null)
+  wtask=$(jq -r '.task_ref // ""' "$worker_file" 2>/dev/null)
+  wretry=$(jq -r '.retry_count // "N/A"' "$worker_file" 2>/dev/null)
+  wmaxretry=$(jq -r '.max_retries // "N/A"' "$worker_file" 2>/dev/null)
+  # Extract slug from window name: worker-001-codex-slug
+  wwindow=$(jq -r '.tmux_window // ""' "$worker_file" 2>/dev/null)
+  # slug is the part after agent in window name
+  wslug=$(echo "$wwindow" | sed 's/^worker-[0-9]*-[^-]*-//')
+
+  worker_ids+=("$wid")
+  worker_agents+=("$wagent")
+  worker_slugs+=("$wslug")
+  worker_statuses+=("$wstatus")
+  worker_task_refs+=("$wtask")
+  worker_retry_counts+=("$wretry")
+  worker_max_retries+=("$wmaxretry")
+done
+
+now=$(date +'%Y-%m-%d %H:%M:%S')
+count=${#worker_ids[@]}
+
+if [ $output_json -eq 1 ]; then
+  # JSON output
+  echo "{"
+  echo "  \"timestamp\": \"${now}\","
+  echo "  \"worker_count\": ${count},"
+  echo "  \"workers\": ["
+  for i in "${!worker_ids[@]}"; do
+    sep=","
+    if [ $i -eq $((count - 1)) ]; then
+      sep=""
+    fi
+    echo "    {\"id\":\"${worker_ids[$i]}\",\"agent\":\"${worker_agents[$i]}\",\"slug\":\"${worker_slugs[$i]}\",\"status\":\"${worker_statuses[$i]}\",\"task_ref\":\"${worker_task_refs[$i]}\",\"retry_count\":\"${worker_retry_counts[$i]}\",\"max_retries\":\"${worker_max_retries[$i]}\"}${sep}"
+  done
+  echo "  ]"
+  echo "}"
+  exit 0
+fi
+
+# ANSI color helper
+color_for_status() {
+  local s="$1"
+  case "$s" in
+    done)     echo -e "${GREEN}" ;;
+    running)  echo -e "${YELLOW}" ;;
+    failed)   echo -e "${RED}" ;;
+    stale)    echo -e "${RED}" ;;
+    starting) echo -e "${YELLOW}" ;;
+    blocked)  echo -e "${RED}" ;;
+    *)        echo -e "${NC}" ;;
+  esac
+}
+
+indicator_for_status() {
+  local s="$1"
+  case "$s" in
+    done)     echo "v" ;;
+    running)  echo "~" ;;
+    failed)   echo "x" ;;
+    stale)    echo "?" ;;
+    blocked)  echo "!" ;;
+    starting) echo "~" ;;
+    *)        echo "-" ;;
+  esac
+}
+
+# Build table lines
+header="  ID          AGENT    SLUG              STATUS    RETRIES  IND"
+separator="  ----------  -------  ----------------  --------  -------  ---"
+
+rows=()
+for i in "${!worker_ids[@]}"; do
+  wid="${worker_ids[$i]}"
+  wagent="${worker_agents[$i]}"
+  wslug="${worker_slugs[$i]}"
+  wstatus="${worker_statuses[$i]}"
+  wretry="${worker_retry_counts[$i]}"
+  wmaxretry="${worker_max_retries[$i]}"
+  ind=$(indicator_for_status "$wstatus")
+  col=$(color_for_status "$wstatus")
+  retry_display="${wretry}/${wmaxretry}"
+  row=$(printf "  %-10s  %-7s  %-16s  %b%-8s%b  %-7s  %b%s%b" \
+    "$wid" "$wagent" "$wslug" "$col" "$wstatus" "${NC}" "$retry_display" "$col" "$ind" "${NC}")
+  rows+=("$row")
+done
+
+# Print dashboard
+echo ""
+echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+printf "${BLUE}║${NC}  %-60s${BLUE}║${NC}\n" "sora-backend 오케스트레이션 상태판"
+printf "${BLUE}║${NC}  %-60s${BLUE}║${NC}\n" "${now}"
+echo -e "${BLUE}╠══════════════════════════════════════════════════════════════╣${NC}"
+printf "${BLUE}║${NC}%-64s${BLUE}║${NC}\n" "${header}"
+printf "${BLUE}║${NC}%-64s${BLUE}║${NC}\n" "${separator}"
+
+if [ ${#rows[@]} -eq 0 ]; then
+  printf "${BLUE}║${NC}  %-60s${BLUE}║${NC}\n" "(등록된 워커 없음)"
+else
+  for row in "${rows[@]}"; do
+    echo -e "${BLUE}║${NC}${row}"
+  done
+fi
+
+echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "  총 워커: ${count}개  |  색상: ${GREEN}완료${NC} ${YELLOW}진행중${NC} ${RED}실패/중단${NC}"
+echo ""

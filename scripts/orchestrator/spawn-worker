@@ -20,12 +20,17 @@ Options:
   --spec FILE          Path to task specification file
   --auto-start         Automatically start the agent with task command
   --command CMD        Initial command to send to the window
+  --split-log          Split window: main pane (70%) + log pane (30%, tail -f)
+  --retry N            Set max retries (adds retry_count/max_retries to worker JSON)
+  --from-queue         Read next item from .orchestrator/queue.json (ignores positional args)
   --help               Show this help message
 
 Examples:
   spawn-worker codex routes task-1
   spawn-worker codex routes task-1 --spec docs/tasks/2026-03-31-routes.md --auto-start
   spawn-worker codex auth auth-impl --command "npm run build && npm run lint"
+  spawn-worker codex routes task-1 --split-log --retry 3
+  spawn-worker --from-queue
 
 EOF
 }
@@ -37,6 +42,10 @@ task_ref=""
 spec_file=""
 auto_start=0
 initial_command=""
+split_log=0
+max_retries=0
+use_retry=0
+from_queue=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,6 +60,19 @@ while [[ $# -gt 0 ]]; do
     --command)
       initial_command="$2"
       shift 2
+      ;;
+    --split-log)
+      split_log=1
+      shift
+      ;;
+    --retry)
+      max_retries="$2"
+      use_retry=1
+      shift 2
+      ;;
+    --from-queue)
+      from_queue=1
+      shift
       ;;
     --help)
       usage
@@ -78,16 +100,26 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Setup directories first (needed for queue_pop)
+ensure_dirs
+init_state
+
+# --from-queue: pop next item from queue
+if [ $from_queue -eq 1 ]; then
+  queue_item=$(queue_pop) || { log_error "Failed to pop from queue"; exit 1; }
+  agent=$(echo "$queue_item" | jq -r '.agent')
+  slug=$(echo "$queue_item" | jq -r '.slug')
+  task_ref=$(echo "$queue_item" | jq -r '.task_ref')
+  spec_file=$(echo "$queue_item" | jq -r '.spec_path // ""')
+  log_info "Loaded from queue: agent=${agent} slug=${slug} task_ref=${task_ref}"
+fi
+
 # Validate required arguments
 if [ -z "$agent" ] || [ -z "$slug" ] || [ -z "$task_ref" ]; then
   log_error "Missing required arguments"
   usage
   exit 1
 fi
-
-# Setup directories
-ensure_dirs
-init_state
 
 # Generate worker ID
 worker_id=$(next_worker_id)
@@ -100,9 +132,35 @@ log_info "Creating tmux window: ${window_name}"
 tmux new-window -t sora-backend -n "${window_name}" -d -c "${REPO_ROOT}"
 tmux set-window-option -t "sora-backend:${window_name}" remain-on-exit on
 
+# --split-log: split window into main pane (70%) and log pane (30%)
+if [ $split_log -eq 1 ]; then
+  log_info "Splitting window for log pane"
+  tmux split-window -t "sora-backend:${window_name}" -v -p 30 -c "${REPO_ROOT}"
+  tmux send-keys -t "sora-backend:${window_name}.bottom" "tail -f '${log_file}'" Enter
+fi
+
 # Create worker JSON
 log_info "Registering worker: ${worker_id}"
-cat > "${worker_json}" <<EOF
+if [ $use_retry -eq 1 ]; then
+  cat > "${worker_json}" <<EOF
+{
+  "worker_id": "${worker_id}",
+  "agent": "${agent}",
+  "tmux_window": "${window_name}",
+  "status": "starting",
+  "task_ref": "${task_ref}",
+  "spec_path": "${spec_file}",
+  "log_path": "${log_file}",
+  "started_at": "$(iso8601_now)",
+  "last_heartbeat": "$(iso8601_now)",
+  "last_output_at": null,
+  "owner": "controller",
+  "retry_count": 0,
+  "max_retries": ${max_retries}
+}
+EOF
+else
+  cat > "${worker_json}" <<EOF
 {
   "worker_id": "${worker_id}",
   "agent": "${agent}",
@@ -117,6 +175,7 @@ cat > "${worker_json}" <<EOF
   "owner": "controller"
 }
 EOF
+fi
 
 # Prepare initial command
 if [ $auto_start -eq 1 ]; then

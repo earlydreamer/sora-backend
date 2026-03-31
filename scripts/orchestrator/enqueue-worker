@@ -1,0 +1,95 @@
+#!/bin/bash
+# enqueue-worker: Add a task to the priority queue
+
+set -euo pipefail
+
+source "$(dirname "$0")/lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: enqueue-worker [OPTIONS] <agent> <slug> <task-ref>
+
+Add a task to the orchestration priority queue (.orchestrator/queue.json).
+Lower priority number = higher priority (1 = highest).
+
+Arguments:
+  agent           Agent type: codex, gemini, etc.
+  slug            Brief slug for the task (e.g., routes, auth)
+  task-ref        Task reference (e.g., task-1, docs/tasks/2026-03-31-routes.md)
+
+Options:
+  --priority N    Priority integer, lower = higher priority (default: 5)
+  --spec FILE     Path to task specification file
+  --help          Show this help message
+
+Examples:
+  enqueue-worker codex routes task-1
+  enqueue-worker codex routes task-1 --priority 1 --spec docs/tasks/2026-03-31-routes.md
+  enqueue-worker gemini review review-task --priority 3
+
+EOF
+}
+
+agent=""
+slug=""
+task_ref=""
+priority=5
+spec_file=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --priority)
+      priority="$2"
+      shift 2
+      ;;
+    --spec)
+      spec_file="$2"
+      shift 2
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      log_error "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+    *)
+      if [ -z "$agent" ]; then
+        agent="$1"
+      elif [ -z "$slug" ]; then
+        slug="$1"
+      elif [ -z "$task_ref" ]; then
+        task_ref="$1"
+      else
+        log_error "Too many positional arguments"
+        usage
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$agent" ] || [ -z "$slug" ] || [ -z "$task_ref" ]; then
+  log_error "Missing required arguments"
+  usage
+  exit 1
+fi
+
+# Validate priority is an integer
+if ! [[ "$priority" =~ ^[0-9]+$ ]]; then
+  log_error "--priority must be a non-negative integer"
+  exit 1
+fi
+
+ensure_dirs
+
+queue_push "$agent" "$slug" "$task_ref" "$spec_file" "$priority"
+
+log_success "Enqueued: agent=${agent} slug=${slug} task_ref=${task_ref} priority=${priority}"
+
+if [ "${OUTPUT_JSON:-0}" = "1" ]; then
+  queue_list
+fi
