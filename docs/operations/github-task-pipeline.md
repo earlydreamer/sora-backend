@@ -103,10 +103,18 @@ git diff -- docs/<target>.md
 
 1. 검증 통과 후 PR을 `main`에 merge한다.
    `docs-only` 작업은 문서 무결성 확인 완료를 검증 통과로 본다.
+   기본 merge 전략은 non-squash다.
 2. merge 뒤 PR이 `merged` 상태인지 확인한다.
 3. issue가 닫혔는지 확인한다. 자동으로 닫히지 않았다면 즉시 닫는다.
 4. 로컬 브랜치와 원격 브랜치를 삭제한다.
 5. issue, PR, 브랜치가 하나라도 남아 있으면 작업 완료로 간주하지 않는다.
+
+### 히스토리 가시성 원칙
+
+- Fork 같은 GUI Git 클라이언트에서 `main` 히스토리를 눈으로 따라갈 수 있어야 한다.
+- 따라서 의미 단위 커밋이 `main`에서 바로 보이도록 squash merge를 기본값으로 사용하지 않는다.
+- 기본 전략은 `merge`이며, 저장소 정책이나 사용자 요청이 따로 있을 때만 다른 전략을 쓴다.
+- squash는 사용자가 명시적으로 요청했거나, fixup-only 브랜치를 하나로 접는 것이 더 적절한 예외 상황에서만 사용한다.
 
 ## 권장 명령 예시
 
@@ -117,7 +125,7 @@ git switch main
 git pull --ff-only origin main
 git switch -c codex/<issue-number>-brief-slug
 gh pr create
-gh pr merge --squash --delete-branch
+gh pr merge --merge --delete-branch
 gh issue close <issue-number>
 git branch -d codex/<issue-number>-brief-slug
 ```

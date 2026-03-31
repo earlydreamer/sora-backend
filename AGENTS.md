@@ -162,6 +162,8 @@ Claude가 Codex에 작업을 넘길 때는 아래 형식으로 작업 범위를 
 - 작업은 issue에 연결된 브랜치에서만 진행한다.
 - 검증이 모두 통과하기 전에는 PR merge를 진행하지 않는다.
 - 단, `docs-only` 작업은 문서 링크, 경로, 문서 간 정합성 확인이 끝나면 merge 가능 상태로 본다.
+- Fork 같은 GUI Git 클라이언트에서 `main` 히스토리를 눈으로 추적할 수 있어야 하므로, 기본 merge 전략은 의미 단위 커밋을 보존하는 non-squash를 사용한다.
+- squash merge는 기본값으로 사용하지 않는다. 사용자 요청이 있거나, fixup-only 성격의 브랜치를 의도적으로 접어야 하는 예외 상황에서만 사용한다.
 - merge 완료 후 issue, PR, 로컬 브랜치, 원격 브랜치가 남아 있으면 작업 완료로 간주하지 않는다.
 - merge 완료 후에는 사용자가 실제로 작업을 이어갈 로컬 작업 디렉터리가 최종 기준 브랜치를 가리키는지 확인해야 한다. 이 단계가 빠지면 다른 LLM handoff 기준으로는 완료가 아니다.
 - GitHub 작업 절차 상세는 [docs/operations/github-task-pipeline.md](./docs/operations/github-task-pipeline.md)를 따른다.
