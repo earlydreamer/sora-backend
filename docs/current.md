@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 18:30
+최종 업데이트: 2026-03-31 21:00
 업데이트 주체: Claude
 
 ## 프로젝트 상태
@@ -24,13 +24,13 @@
 - **리뷰 기준**: Windows/Linux/Unix 환경 차이에서만 생기는 인코딩, 개행 문자, 실행 비트 차이는 무시하고 실제 코드 동작 변경만 검토한다.
 - **GitHub 파이프라인**: 신규 작업은 `gh` 기반 한국어 issue 생성 → `codex/<issue-number>-brief-slug` 브랜치 작업 → 한국어 PR → `main` merge → issue/PR/브랜치 정리 순서로 진행한다.
 - **개발 로드맵**: [issue #1](https://github.com/earlydreamer/sora-backend/issues/1) 기준으로 `docs/superpowers/plans/2026-03-31-backend-development-roadmap.md`에 다음 개발 순서를 정리했다.
-- **tmux 오케스트레이션**: 1단계 문서 계약으로 `docs/superpowers/specs/2026-03-31-tmux-orchestration-design.md`와 `docs/operations/tmux-orchestration.md`를 기준 문서로 추가했고, 2단계 helper script (`spawn-worker`, `list-workers`, `capture-worker`, `mark-worker`, `recover-session`)를 `scripts/orchestrator/`에 구현했다. 실행은 `tmux window 중심`, 상태 저장은 `MD + JSON` 이중 레이어를 따르며, `--auto-start` 옵션으로 자동 트리거를 지원한다.
+- **tmux 오케스트레이션**: 1~4단계 완료. helper script (`spawn-worker`, `list-workers`, `capture-worker`, `mark-worker`, `recover-session`, `dashboard`, `enqueue-worker`)를 `scripts/orchestrator/`에 구현. 4단계에서 TUI 상태판(`dashboard`), 우선순위 큐(`enqueue-worker`), pane 기반 로그(`--split-log`), 자동 재시도(`--retry N`) 추가.
 
 ## 하네스 상태
-- 상태: done (3단계 완료)
+- 상태: done (4단계 완료)
 - 현재 담당: 없음
 - 활성 스펙: 없음
-- Claude 재판단 필요: 없음 (Phase 4는 선택사항)
+- Claude 재판단 필요: 없음
 
 ## 작업 체크리스트
 
@@ -91,3 +91,10 @@
   - 병렬 워커 위임 흐름 구현 (30초 폴링, 모니터링 루프, 게이팅)
   - 테스트 하네스 생성 (test-tmux-integration.sh)
   - GitHub issue #7, PR #8 통합 및 merge 완료
+- [x] tmux 오케스트레이션 4단계 선택적 고도화:
+  - dashboard (TUI 상태판: ANSI color, --once, --json)
+  - enqueue-worker (우선순위 큐: .orchestrator/queue.json)
+  - spawn-worker: --split-log, --retry N, --from-queue 옵션 추가
+  - recover-session: --auto-fix에서 failed 워커 자동 재시도
+  - lib.sh: queue_push, queue_pop, queue_list 공통 함수 추가
+  - GitHub issue #9, PR #10 통합 및 merge 완료
