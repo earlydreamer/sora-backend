@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 03:01
+최종 업데이트: 2026-03-31 14:45
 업데이트 주체: Codex
 
 ## 프로젝트 상태
@@ -23,6 +23,8 @@
 - **리뷰 루프 제한**: 같은 파일/같은 task에서 reviewer 수정 루프는 최대 2회까지만 반복하고, 이후에는 blocking 이슈만 추가 수정한 뒤 다음 단계로 진행한다.
 - **리뷰 기준**: Windows/Linux/Unix 환경 차이에서만 생기는 인코딩, 개행 문자, 실행 비트 차이는 무시하고 실제 코드 동작 변경만 검토한다.
 - **GitHub 파이프라인**: 신규 작업은 `gh` 기반 한국어 issue 생성 → `codex/<issue-number>-brief-slug` 브랜치 작업 → 한국어 PR → `main` merge → issue/PR/브랜치 정리 순서로 진행한다.
+- **tmux 오케스트레이션**: 1단계 문서 계약으로 `docs/superpowers/specs/2026-03-31-tmux-orchestration-design.md`와 `docs/operations/tmux-orchestration.md`를 기준 문서로 추가했다. 실행은 `tmux window 중심`, 상태 저장은 `MD + JSON` 이중 레이어를 따른다.
+- **기준선 검증 상태**: 현재 `main` 기준에서도 `npm run build`, `npm run lint`는 Prisma generated client 부재로 실패하고, `CI=1 npm run test:e2e -- --runInBand`는 `JWT_SECRET` 미설정으로 실패한다. tmux 문서 작업과는 별개 블로커다.
 
 ## 하네스 상태
 - 상태: done
@@ -63,6 +65,7 @@
 - [x] `docs/tasks/` handoff 템플릿 및 사용 규칙 추가
 - [x] GitHub issue/PR 기반 작업 파이프라인 문서화
 - [x] `/start-harness`가 superpowers/gstack/지원 skill 전체를 대상으로 가장 적절한 흐름을 먼저 선택하도록 오케스트레이션 규칙 강화
+- [x] tmux 오케스트레이션 1단계 문서 계약 반영 (spec, 운영 가이드)
 - [x] 리뷰 시 OS별 인코딩/개행/실행 비트 차이는 무시하고 실제 코드 변경만 보도록 지침 추가
 - [x] /review 지적 사항 전체 반영:
   - P2002 동시 register 409 처리 (auth.service.ts)
