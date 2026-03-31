@@ -1,0 +1,205 @@
+# tmux 오케스트레이션 운영 가이드
+
+## 개요
+
+이 문서는 `sora-backend` 저장소에서 WSL2 Ubuntu 기반 `tmux` 세션으로 여러 워커 에이전트를 운영하는 기본 절차를 정리한다. 런타임 상태와 복구 규약의 설계 근거는 [2026-03-31-tmux-orchestration-design.md](/mnt/d/Projects/sora/sora-backend/.worktrees/tmux-orchestration-phase1/docs/superpowers/specs/2026-03-31-tmux-orchestration-design.md)를 따른다.
+
+초기 목표는 다음 세 가지다.
+
+- Windows PC의 WSL2 안에서 `tmux` 세션을 안정적으로 유지한다.
+- Tailscale VPN을 통해 SSH로 원격 접근해 실시간으로 세션을 관찰한다.
+- 향후 helper script와 `.orchestrator/` 상태 파일이 붙었을 때도 같은 운영 절차를 재사용한다.
+
+## 전제 조건
+
+- Windows PC에 WSL2와 Ubuntu 22.04 이상이 설치돼 있다.
+- WSL2에서 systemd가 활성화돼 있다.
+- WSL 안에 `openssh-server`, `tmux`, `git`이 설치돼 있다.
+- Tailscale이 설치돼 있고 대상 장치가 같은 tailnet에 연결돼 있다.
+- 저장소 경로는 `/mnt/d/Projects/sora/sora-backend`를 기준으로 한다.
+
+## WSL2 systemd 활성화
+
+### 1. 설정 확인
+
+```bash
+cat /etc/wsl.conf
+```
+
+`[boot]` 섹션에 `systemd=true`가 있어야 한다.
+
+### 2. 없으면 추가
+
+```bash
+sudo tee /etc/wsl.conf >/dev/null <<'EOF'
+[boot]
+systemd=true
+EOF
+```
+
+### 3. WSL 재시작
+
+Windows PowerShell에서 아래 명령을 실행한다.
+
+```powershell
+wsl --shutdown
+```
+
+그 뒤 WSL 터미널을 다시 연다.
+
+### 4. 확인
+
+```bash
+systemctl status
+```
+
+PID 1의 init 프로세스가 systemd여야 한다.
+
+## SSH 서버 설정
+
+### 1. 설치
+
+```bash
+sudo apt update
+sudo apt install -y openssh-server
+```
+
+### 2. 서비스 활성화
+
+```bash
+sudo systemctl enable ssh
+sudo systemctl start ssh
+```
+
+### 3. 포트 확인
+
+```bash
+sudo ss -tlnp | grep ssh
+```
+
+기본 포트는 22다.
+
+### 4. 비밀번호 인증 비활성화
+
+공개 키 인증만 사용할 계획이면 아래 설정을 적용한다.
+
+```bash
+sudo sed -i 's/^#\\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo systemctl restart ssh
+```
+
+## Tailscale VPN 설정
+
+### 1. 설치 및 로그인
+
+배포판에 맞는 공식 절차를 따르되, Ubuntu에서는 일반적으로 아래 흐름을 사용한다.
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+
+### 2. 연결 확인
+
+```bash
+tailscale status
+```
+
+여기서 WSL 장치가 tailnet에 연결돼 있어야 한다.
+
+### 3. SSH 접속 정책
+
+- 공개 포트 포워딩이나 라우터 포트 개방은 기본 경로로 쓰지 않는다.
+- 가능하면 Tailscale이 부여한 장치 이름이나 IP를 사용해 SSH 접속한다.
+
+## tmux 기본 운영
+
+### 세션 생성
+
+```bash
+tmux new-session -d -s sora-backend -c /mnt/d/Projects/sora/sora-backend
+tmux rename-window -t sora-backend:0 control
+```
+
+### 세션 접속
+
+```bash
+tmux attach -t sora-backend
+```
+
+### worker window 생성 예시
+
+```bash
+tmux new-window -t sora-backend -n worker-001-codex-routes -c /mnt/d/Projects/sora/sora-backend
+```
+
+### 최근 출력 확인
+
+```bash
+tmux capture-pane -pt sora-backend:worker-001-codex-routes -S -50
+```
+
+### 종료 후 화면 유지
+
+```bash
+tmux setw -t sora-backend:worker-001-codex-routes remain-on-exit on
+```
+
+## 제어 경로
+
+### 경로 A: Windows Claude Code 앱
+
+- Windows 쪽 Claude Code 앱이 WSL 명령을 실행해 세션을 제어한다.
+- 이때 `wsl bash -lc "..."` 형태로 WSL 컨텍스트를 명시해 실행하는 것을 기본값으로 둔다.
+- 작업 상태는 `docs/current.md`와 `.orchestrator/*.json`을 함께 확인한다.
+
+### 경로 B: SSH + WSL CLI
+
+- 외부 장치에서 Tailscale VPN을 통해 WSL SSH로 붙는다.
+- `tmux attach -t sora-backend`로 현재 세션을 관찰한다.
+- WSL 안의 Claude, Codex, Gemini CLI가 같은 helper script를 사용해 제어를 이어받는다.
+
+## `.orchestrator/` 운영 규칙
+
+### 역할 분리
+
+- `docs/current.md`, `docs/tasks/*.md`
+  - 사람용 상태와 작업 계약
+- `.orchestrator/state.json`, `.orchestrator/workers/*.json`
+  - 기계용 런타임 상태
+- `.orchestrator/logs/`
+  - worker 로그
+
+### git 정책
+
+- 문서와 정적 스크립트는 커밋 대상이다.
+- 런타임 JSON과 로그는 커밋하지 않는다.
+- 실제 `.gitignore` 반영은 helper script 도입 시점에 함께 처리한다.
+
+## 복구 절차
+
+컨트롤러 에이전트가 교체되면 아래 순서로 복구한다.
+
+1. `AGENTS.md` 읽기
+2. `docs/current.md` 읽기
+3. 활성 스펙 읽기
+4. `.orchestrator/state.json` 읽기
+5. `tmux list-windows -t sora-backend` 실행
+6. `workers/*.json`과 실제 window를 대조
+7. `tmux capture-pane`으로 최근 출력 확인
+8. `running`, `blocked`, `done`, `stale`, `failed`로 정규화
+
+## 시범 적용 전 체크리스트
+
+- [ ] WSL2에 systemd가 활성화돼 있다.
+- [ ] `openssh-server`가 실행 중이다.
+- [ ] Tailscale로 WSL 장치에 접근 가능하다.
+- [ ] `tmux new-session -d -s sora-backend`가 성공한다.
+- [ ] `tmux attach -t sora-backend`로 접속 가능하다.
+- [ ] `control` window와 샘플 `worker-*` window를 수동으로 열고 닫을 수 있다.
+
+## 다음 단계
+
+- 2단계에서 helper script를 추가한다.
+- 그 뒤 `start-harness` 또는 별도 skill에서 helper script를 호출하게 연결한다.
+- 시범 적용에서 드러난 경로 문제나 복구 절차 누락을 다시 문서에 반영한다.

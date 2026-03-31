@@ -24,6 +24,7 @@
 - issue 제목과 본문은 한국어로 작성한다.
 - 제목은 한 줄 요약으로 쓴다.
 - 본문에는 최소한 아래 항목을 넣는다.
+- `docs-only` 작업이면 완료 조건을 문서 무결성 확인 항목으로 바꿀 수 있다.
 
 ```md
 ## 배경
@@ -62,6 +63,22 @@ CI=1 npm run test:e2e -- --runInBand
 
 - 위 검증이 실패하면 merge를 진행하지 않는다.
 
+### `docs-only` 예외
+
+- `docs-only` 작업은 `build/lint/test`를 필수 검증으로 강제하지 않는다.
+- 대신 아래 항목으로 검증을 대체한다.
+
+```bash
+rg -n "<핵심 키워드>" docs/<target>.md
+git diff -- docs/<target>.md
+```
+
+- 확인 기준은 다음과 같다.
+  - 문서 링크와 경로가 실제 파일과 일치한다.
+  - 관련 운영 문서 사이에 규칙 충돌이 없다.
+  - `docs/current.md`나 `docs/history/` 갱신이 필요하면 함께 반영돼 있다.
+- `docs-only` PR 본문에는 검증 섹션에 문서 무결성 확인 결과를 적고, `build/lint/test`는 생략하거나 비대상으로 명시한다.
+
 ## Pull Request 규칙
 
 - PR은 한국어 제목과 본문을 사용한다.
@@ -85,6 +102,7 @@ CI=1 npm run test:e2e -- --runInBand
 ## Merge 및 정리
 
 1. 검증 통과 후 PR을 `main`에 merge한다.
+   `docs-only` 작업은 문서 무결성 확인 완료를 검증 통과로 본다.
 2. merge 뒤 PR이 `merged` 상태인지 확인한다.
 3. issue가 닫혔는지 확인한다. 자동으로 닫히지 않았다면 즉시 닫는다.
 4. 로컬 브랜치와 원격 브랜치를 삭제한다.
