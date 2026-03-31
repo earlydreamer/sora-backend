@@ -316,3 +316,99 @@ scripts/orchestrator/recover-session --auto-fix
 
 - 3단계에서 `start-harness` 또는 별도 skill에서 helper script를 호출하게 연결한다.
 - 시범 적용에서 드러난 경로 문제나 복구 절차 누락을 다시 문서에 반영한다.
+
+## Phase 4 고도화 기능
+
+4단계에서 운영 편의성과 안정성을 높이는 5가지 기능이 추가되었다.
+
+### dashboard
+
+모든 워커의 상태를 한 화면에 ANSI 색상으로 표시하는 TUI 상태판이다.
+
+```bash
+# 실시간 갱신 (watch -n 5 내부 실행)
+scripts/orchestrator/dashboard
+
+# 단일 스냅샷 출력 후 종료
+scripts/orchestrator/dashboard --once
+
+# JSON 출력 (프로그래매틱 소비용)
+scripts/orchestrator/dashboard --json
+```
+
+색상 규칙:
+- 초록색: `done` (완료)
+- 노란색: `running`, `starting` (진행 중)
+- 빨간색: `failed`, `stale`, `blocked` (오류/중단)
+
+### enqueue-worker
+
+우선순위 큐(`.orchestrator/queue.json`)에 태스크를 추가한다. 우선순위는 낮을수록 먼저 실행된다 (1 = 최고 우선순위, 기본값: 5).
+
+```bash
+# 기본 사용
+scripts/orchestrator/enqueue-worker codex routes task-1
+
+# 우선순위와 스펙 파일 지정
+scripts/orchestrator/enqueue-worker codex routes task-1 \
+  --priority 1 \
+  --spec docs/tasks/2026-03-31-routes.md
+```
+
+queue.json 구조:
+```json
+{
+  "queue": [
+    {
+      "id": "q-001",
+      "agent": "codex",
+      "slug": "routes",
+      "task_ref": "task-1",
+      "spec_path": "docs/tasks/...",
+      "priority": 1,
+      "enqueued_at": "2026-03-31T..."
+    }
+  ]
+}
+```
+
+### spawn-worker: --split-log 옵션
+
+window를 main pane(70%)과 log pane(30%)으로 분할한다. log pane은 해당 워커의 로그 파일을 `tail -f`로 실시간 표시한다.
+
+```bash
+scripts/orchestrator/spawn-worker codex routes task-1 --split-log
+```
+
+### spawn-worker: --retry N 옵션
+
+워커 실패 시 자동 재시작 횟수를 지정한다. worker.json에 `retry_count`와 `max_retries` 필드가 추가된다.
+
+```bash
+scripts/orchestrator/spawn-worker codex routes task-1 --retry 3
+```
+
+### spawn-worker: --from-queue 옵션
+
+`.orchestrator/queue.json`에서 우선순위가 가장 높은 항목을 꺼내 워커를 생성한다.
+
+```bash
+# 큐에 태스크 추가 후 순서대로 실행
+scripts/orchestrator/enqueue-worker codex auth auth-task --priority 1
+scripts/orchestrator/enqueue-worker codex routes routes-task --priority 2
+scripts/orchestrator/spawn-worker --from-queue  # auth-task 먼저 실행
+scripts/orchestrator/spawn-worker --from-queue  # routes-task 실행
+```
+
+### recover-session: failed 워커 자동 재시도
+
+`--auto-fix` 모드에서 `retry_count < max_retries`인 failed 워커를 자동으로 재시작한다.
+
+```bash
+scripts/orchestrator/recover-session --auto-fix
+```
+
+동작 순서:
+1. window가 없는 워커를 `stale`로 표시 (기존 동작)
+2. `failed` 상태이고 `retry_count < max_retries`인 워커 탐색
+3. `retry_count`를 1 증가시킨 후 동일 파라미터로 `spawn-worker` 재호출
