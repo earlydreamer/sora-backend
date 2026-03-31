@@ -231,8 +231,11 @@ scripts/orchestrator/spawn-worker codex routes task-1 \
 
 이 경우 새 window가 생성된 뒤 자동으로:
 ```bash
-cd /mnt/d/Projects/sora/sora-backend && claude "docs/tasks/2026-03-31-routes.md를 읽고 구현해줘"
+export CODEX_HOME="/mnt/d/Projects/sora/sora-backend/.orchestrator/runtime/codex-home/worker-001"
+cd /mnt/d/Projects/sora/sora-backend && codex exec - < "/mnt/d/Projects/sora/sora-backend/.orchestrator/logs/worker-001-task.txt"
 ```
+
+`spawn-worker`는 Codex agent일 때 worker별 `CODEX_HOME`을 `.orchestrator/runtime/codex-home/<worker-id>`로 분리한다. 이렇게 해야 데스크톱 Codex 앱, 다른 tmux worker, 수동 CLI 실행이 같은 SQLite 상태 DB를 공유하면서 `logs_1.sqlite` 또는 `state_5.sqlite` 경고를 내는 문제를 피할 수 있다. 공유가 필요한 `auth.json`, `config.toml`, `skills`, `plugins`는 링크하고, 상태 DB와 세션 파일은 worker별 런타임에 별도로 생성한다.
 
 **커스텀 명령:**
 ```bash
