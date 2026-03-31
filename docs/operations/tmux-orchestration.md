@@ -412,3 +412,25 @@ scripts/orchestrator/recover-session --auto-fix
 1. window가 없는 워커를 `stale`로 표시 (기존 동작)
 2. `failed` 상태이고 `retry_count < max_retries`인 워커 탐색
 3. `retry_count`를 1 증가시킨 후 동일 파라미터로 `spawn-worker` 재호출
+
+## 버그 수정 이력 (issue #11)
+
+engineering review + codex challenge에서 발견된 16개 버그를 수정했다.
+
+### 주요 변경 사항
+
+**SESSION_NAME 동적 생성**: `sora-backend` 하드코딩 제거. `lib.sh`가 `REPO_ROOT`의 basename을 자동으로 사용한다. 다른 repo에서 scripts를 재사용하거나 clone/worktree로 작업해도 세션이 오염되지 않는다.
+
+**window name 형식 변경**: `worker-001-agent-slug` (구: `worker-worker-001-agent-slug`). 기존 `.orchestrator/workers/` 폴더에 남아 있는 worker JSON이 있다면 `tmux_window` 필드 값을 확인하고 필요 시 삭제한다.
+
+**로그 함수 전체 stderr 이동**: `log_info`, `log_success`, `log_warn`이 모두 stderr로 출력된다. `capture-worker` 출력을 파이프로 파싱하는 자동화 스크립트가 있다면 그대로 동작한다.
+
+**validate_worker_json() 호출**: `recover-session`, `capture-worker`, `dashboard`가 worker JSON을 읽기 전에 유효성을 검사한다. 손상된 파일이 있어도 해당 파일만 건너뛰고 나머지는 처리된다.
+
+**recover-session --auto-fix 안전성**: tmux 세션이 없으면 즉시 중단한다. 임시 tmux 재시작 중에 auto-fix를 실행해도 worker JSON이 무결하게 유지된다.
+
+**단위 테스트**: `scripts/test-tmux-unit.sh`로 tmux 없이 핵심 로직을 검증할 수 있다.
+
+```bash
+bash scripts/test-tmux-unit.sh  # 16개 테스트
+```

@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 21:00
+최종 업데이트: 2026-03-31 22:30
 업데이트 주체: Claude
 
 ## 프로젝트 상태
@@ -98,3 +98,18 @@
   - recover-session: --auto-fix에서 failed 워커 자동 재시도
   - lib.sh: queue_push, queue_pop, queue_list 공통 함수 추가
   - GitHub issue #9, PR #10 통합 및 merge 완료
+- [x] tmux 오케스트레이션 5단계 버그 수정:
+  - engineering review + codex challenge 발견 16개 버그 전체 수정
+  - SESSION_NAME 동적화 (REPO_ROOT basename 기반)
+  - window name double-prefix 제거 (worker-001-agent-slug)
+  - next_worker_id(): max suffix+1 방식 (경쟁 조건, ID 재사용 방지)
+  - recover-session retry: 기존 JSON retrying 갱신 (좀비 방지)
+  - --from-queue: tmux 실패 시 queue 복구
+  - state.json workers[] 실제 업데이트 구현
+  - 로그 함수 전체 stderr 이동 (stdout 오염 제거)
+  - capture-worker pane 0 명시 (--split-log 시 비결정 방지)
+  - validate_worker_json() 호출 추가
+  - mark-worker 상태 유효성 검사
+  - jq --arg 이스케이프 (invalid JSON 방지)
+  - scripts/test-tmux-unit.sh: 16개 단위 테스트
+  - GitHub issue #11, PR #12 통합 및 merge 완료

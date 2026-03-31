@@ -54,9 +54,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# If neither --once nor --json, run watch
+# If neither --once nor --json, run watch with sh -c to avoid quoting issues [M3]
 if [ $once -eq 0 ] && [ $output_json -eq 0 ]; then
-  exec watch -n 5 "\"$(realpath "$0")\" --once"
+  exec watch -n 5 sh -c "\"$(realpath "$0")\" --once"
 fi
 
 ensure_dirs
@@ -75,15 +75,19 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
   if [ ! -f "$worker_file" ]; then
     continue
   fi
+  # Validate JSON before reading to avoid aborting on corrupt file [M2]
+  if ! validate_worker_json "$worker_file" 2>/dev/null; then
+    continue
+  fi
   wid=$(jq -r '.worker_id // "unknown"' "$worker_file" 2>/dev/null)
   wagent=$(jq -r '.agent // "unknown"' "$worker_file" 2>/dev/null)
   wstatus=$(jq -r '.status // "unknown"' "$worker_file" 2>/dev/null)
   wtask=$(jq -r '.task_ref // ""' "$worker_file" 2>/dev/null)
   wretry=$(jq -r '.retry_count // "N/A"' "$worker_file" 2>/dev/null)
   wmaxretry=$(jq -r '.max_retries // "N/A"' "$worker_file" 2>/dev/null)
-  # Extract slug from window name: worker-001-codex-slug
+  # Extract slug from window name: worker-001-codex-slug [C1 fix: no double-prefix]
   wwindow=$(jq -r '.tmux_window // ""' "$worker_file" 2>/dev/null)
-  # slug is the part after agent in window name
+  # window name format is now: worker-001-agent-slug
   wslug=$(echo "$wwindow" | sed 's/^worker-[0-9]*-[^-]*-//')
 
   worker_ids+=("$wid")
@@ -99,20 +103,24 @@ now=$(date +'%Y-%m-%d %H:%M:%S')
 count=${#worker_ids[@]}
 
 if [ $output_json -eq 1 ]; then
-  # JSON output
-  echo "{"
-  echo "  \"timestamp\": \"${now}\","
-  echo "  \"worker_count\": ${count},"
-  echo "  \"workers\": ["
+  # JSON output — use jq to safely escape all string values [L1]
+  workers_json="[]"
   for i in "${!worker_ids[@]}"; do
-    sep=","
-    if [ $i -eq $((count - 1)) ]; then
-      sep=""
-    fi
-    echo "    {\"id\":\"${worker_ids[$i]}\",\"agent\":\"${worker_agents[$i]}\",\"slug\":\"${worker_slugs[$i]}\",\"status\":\"${worker_statuses[$i]}\",\"task_ref\":\"${worker_task_refs[$i]}\",\"retry_count\":\"${worker_retry_counts[$i]}\",\"max_retries\":\"${worker_max_retries[$i]}\"}${sep}"
+    workers_json=$(echo "$workers_json" | jq \
+      --arg id "${worker_ids[$i]}" \
+      --arg agent "${worker_agents[$i]}" \
+      --arg slug "${worker_slugs[$i]}" \
+      --arg status "${worker_statuses[$i]}" \
+      --arg task_ref "${worker_task_refs[$i]}" \
+      --arg retry_count "${worker_retry_counts[$i]}" \
+      --arg max_retries "${worker_max_retries[$i]}" \
+      '. += [{id:$id, agent:$agent, slug:$slug, status:$status, task_ref:$task_ref, retry_count:$retry_count, max_retries:$max_retries}]')
   done
-  echo "  ]"
-  echo "}"
+  jq -n \
+    --arg timestamp "$now" \
+    --argjson worker_count "$count" \
+    --argjson workers "$workers_json" \
+    '{timestamp:$timestamp, worker_count:$worker_count, workers:$workers}'
   exit 0
 fi
 
@@ -126,6 +134,7 @@ color_for_status() {
     stale)    echo -e "${RED}" ;;
     starting) echo -e "${YELLOW}" ;;
     blocked)  echo -e "${RED}" ;;
+    retrying) echo -e "${YELLOW}" ;;
     *)        echo -e "${NC}" ;;
   esac
 }
@@ -139,6 +148,7 @@ indicator_for_status() {
     stale)    echo "?" ;;
     blocked)  echo "!" ;;
     starting) echo "~" ;;
+    retrying) echo ">" ;;
     *)        echo "-" ;;
   esac
 }
@@ -166,7 +176,7 @@ done
 # Print dashboard
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-printf "${BLUE}║${NC}  %-60s${BLUE}║${NC}\n" "sora-backend 오케스트레이션 상태판"
+printf "${BLUE}║${NC}  %-60s${BLUE}║${NC}\n" "${SESSION_NAME} 오케스트레이션 상태판"
 printf "${BLUE}║${NC}  %-60s${BLUE}║${NC}\n" "${now}"
 echo -e "${BLUE}╠══════════════════════════════════════════════════════════════╣${NC}"
 printf "${BLUE}║${NC}%-64s${BLUE}║${NC}\n" "${header}"
