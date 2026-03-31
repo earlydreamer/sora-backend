@@ -10,17 +10,17 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Logging functions
+# Logging functions — all write to stderr so stdout stays clean for data output
 log_info() {
-  echo -e "${BLUE}[INFO]${NC} $*"
+  echo -e "${BLUE}[INFO]${NC} $*" >&2
 }
 
 log_success() {
-  echo -e "${GREEN}[OK]${NC} $*"
+  echo -e "${GREEN}[OK]${NC} $*" >&2
 }
 
 log_warn() {
-  echo -e "${YELLOW}[WARN]${NC} $*"
+  echo -e "${YELLOW}[WARN]${NC} $*" >&2
 }
 
 log_error() {
@@ -34,6 +34,9 @@ STATE_FILE="${ORCHESTRATOR_DIR}/state.json"
 WORKERS_DIR="${ORCHESTRATOR_DIR}/workers"
 LOGS_DIR="${ORCHESTRATOR_DIR}/logs"
 
+# Session name derived from repo root basename — not hardcoded [M1]
+SESSION_NAME="$(basename "${REPO_ROOT}")"
+
 # Ensure orchestrator directories exist
 ensure_dirs() {
   mkdir -p "${ORCHESTRATOR_DIR}" "${WORKERS_DIR}" "${LOGS_DIR}"
@@ -42,29 +45,36 @@ ensure_dirs() {
 # Initialize state.json if not exists
 init_state() {
   if [ ! -f "${STATE_FILE}" ]; then
-    cat > "${STATE_FILE}" <<EOF
-{
-  "session_id": "sora-backend",
-  "repo_path": "${REPO_ROOT}",
-  "control_window": "control",
-  "active_spec": "",
-  "controller": {
-    "agent": "unknown",
-    "status": "idle",
-    "last_heartbeat": "$(date -u +'%Y-%m-%dT%H:%M:%S%z')"
-  },
-  "workers": []
-}
-EOF
+    jq -n \
+      --arg session_id "${SESSION_NAME}" \
+      --arg repo_path "${REPO_ROOT}" \
+      --arg ts "$(date -u +'%Y-%m-%dT%H:%M:%S%z')" \
+      '{
+        session_id: $session_id,
+        repo_path: $repo_path,
+        control_window: "control",
+        active_spec: "",
+        controller: {
+          agent: "unknown",
+          status: "idle",
+          last_heartbeat: $ts
+        },
+        workers: []
+      }' > "${STATE_FILE}"
     log_info "Initialized state.json"
   fi
 }
 
-# Generate next worker ID
+# Generate next worker ID using max existing suffix + 1 to avoid races and reuse [C2]
 next_worker_id() {
-  local count
-  count=$(find "${WORKERS_DIR}" -name "worker-*.json" 2>/dev/null | wc -l)
-  printf "worker-%03d" $((count + 1))
+  local max=0
+  local n
+  for f in "${WORKERS_DIR}"/worker-*.json; do
+    [ -f "$f" ] || continue
+    n=$(basename "$f" .json | grep -oE '[0-9]+$' || true)
+    [ -n "$n" ] && [ "$n" -gt "$max" ] && max="$n"
+  done
+  printf "worker-%03d" $((max + 1))
 }
 
 # Format ISO 8601 timestamp
@@ -72,7 +82,7 @@ iso8601_now() {
   date -u +'%Y-%m-%dT%H:%M:%S%z'
 }
 
-# Validate worker JSON format
+# Validate worker JSON format — call before processing any worker file [M2]
 validate_worker_json() {
   local worker_file="$1"
   if ! jq empty "${worker_file}" 2>/dev/null; then
@@ -83,21 +93,23 @@ validate_worker_json() {
 
 # Get session status from tmux
 tmux_session_exists() {
-  tmux has-session -t sora-backend 2>/dev/null
+  tmux has-session -t "${SESSION_NAME}" 2>/dev/null
 }
 
 # Queue file path
 QUEUE_FILE="${ORCHESTRATOR_DIR}/queue.json"
 
-# Generate next queue item ID
+# Generate next queue item ID using max suffix + 1 [C2-style fix for queue]
 next_queue_id() {
-  local count
+  local max=0
+  local n
   if [ -f "${QUEUE_FILE}" ]; then
-    count=$(jq '.queue | length' "${QUEUE_FILE}" 2>/dev/null || echo 0)
-  else
-    count=0
+    while IFS= read -r id; do
+      n=$(echo "$id" | grep -oE '[0-9]+$' || true)
+      [ -n "$n" ] && [ "$n" -gt "$max" ] && max="$n"
+    done < <(jq -r '.queue[].id // empty' "${QUEUE_FILE}" 2>/dev/null || true)
   fi
-  printf "q-%03d" $((count + 1))
+  printf "q-%03d" $((max + 1))
 }
 
 # queue_push: add an item to the queue
@@ -119,6 +131,7 @@ queue_push() {
 
   local tmp_json
   tmp_json=$(mktemp)
+  # Use jq --arg to safely escape all string fields [L1/H4]
   jq \
     --arg id "$qid" \
     --arg agent "$agent" \
@@ -141,6 +154,7 @@ queue_push() {
 }
 
 # queue_pop: output first item as JSON and remove it from queue
+# Returns the item on stdout; logs to stderr [H2-style]
 queue_pop() {
   if [ ! -f "${QUEUE_FILE}" ]; then
     log_error "Queue file not found: ${QUEUE_FILE}"
@@ -154,7 +168,7 @@ queue_pop() {
     return 1
   fi
 
-  # Output the first item
+  # Output the first item to stdout
   jq '.queue[0]' "${QUEUE_FILE}"
 
   # Remove the first item from queue
@@ -176,4 +190,4 @@ queue_list() {
 export -f log_info log_success log_warn log_error
 export -f ensure_dirs init_state next_worker_id iso8601_now validate_worker_json tmux_session_exists
 export -f next_queue_id queue_push queue_pop queue_list
-export REPO_ROOT ORCHESTRATOR_DIR STATE_FILE WORKERS_DIR LOGS_DIR QUEUE_FILE
+export REPO_ROOT ORCHESTRATOR_DIR STATE_FILE WORKERS_DIR LOGS_DIR QUEUE_FILE SESSION_NAME

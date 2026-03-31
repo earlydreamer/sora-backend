@@ -44,13 +44,28 @@ init_state
 
 log_info "Starting session recovery..."
 
+# Check tmux session exists before querying windows [C6]
+# A missing session is not the same as workers being stale — don't damage JSON
+if ! tmux_session_exists; then
+  log_warn "tmux session '${SESSION_NAME}' not found — cannot validate window state"
+  log_warn "Start the tmux session first, then re-run recover-session"
+  exit 1
+fi
+
 # Get actual tmux windows
-mapfile -t actual_windows < <(tmux list-windows -t sora-backend -F "#{window_name}" 2>/dev/null || true)
+mapfile -t actual_windows < <(tmux list-windows -t "${SESSION_NAME}" -F "#{window_name}" 2>/dev/null || true)
 
 # Check registered workers
 issues=0
 for worker_file in "${WORKERS_DIR}"/worker-*.json; do
   if [ ! -f "$worker_file" ]; then
+    continue
+  fi
+
+  # Validate JSON before reading [M2]
+  if ! validate_worker_json "$worker_file"; then
+    log_warn "Skipping corrupt worker file: $worker_file"
+    ((issues++))
     continue
   fi
 
@@ -80,28 +95,36 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
     fi
   fi
 
-  # Auto-retry failed workers when retry_count < max_retries
+  # Auto-retry failed workers when retry_count < max_retries [C3]
+  # Update existing worker JSON to 'retrying' instead of spawning a new worker
   if [ $auto_fix -eq 1 ] && [ "$status" = "failed" ]; then
     retry_count=$(jq -r '.retry_count // 0' "$worker_file" 2>/dev/null)
     wmax_retries=$(jq -r '.max_retries // 0' "$worker_file" 2>/dev/null)
     if [ "$wmax_retries" -gt 0 ] && [ "$retry_count" -lt "$wmax_retries" ]; then
-      log_info "Auto-retrying ${worker_id} (retry ${retry_count}/${wmax_retries})"
-      # Increment retry_count
-      tmp_json=$(mktemp)
       new_retry_count=$((retry_count + 1))
-      jq --argjson rc "$new_retry_count" '.retry_count = $rc' "$worker_file" > "$tmp_json"
-      mv "$tmp_json" "$worker_file"
-      # Re-spawn using same parameters
+      log_info "Auto-retrying ${worker_id} (retry ${new_retry_count}/${wmax_retries})"
+
+      # Re-spawn using same parameters — new window for this attempt
       w_agent=$(jq -r '.agent' "$worker_file")
-      w_slug=$(jq -r '.tmux_window' "$worker_file" | sed 's/^worker-[0-9]*-[^-]*-//')
       w_task_ref=$(jq -r '.task_ref' "$worker_file")
       w_spec_path=$(jq -r '.spec_path // ""' "$worker_file")
+      w_slug=$(echo "${window_name}" | sed "s/^${worker_id}-${w_agent}-//")
+
       spawn_args=("$w_agent" "$w_slug" "$w_task_ref" "--retry" "$wmax_retries")
       if [ -n "$w_spec_path" ]; then
         spawn_args+=(--spec "$w_spec_path")
       fi
+
+      # Mark existing record as 'retrying' before spawning replacement [C3]
+      tmp_json=$(mktemp)
+      jq --argjson rc "$new_retry_count" \
+         --arg ts "$(iso8601_now)" \
+         '.status = "retrying" | .retry_count = $rc | .last_heartbeat = $ts' \
+         "$worker_file" > "$tmp_json"
+      mv "$tmp_json" "$worker_file"
+
       "$(dirname "$0")/spawn-worker" "${spawn_args[@]}"
-      log_success "Re-spawned ${worker_id} as new worker"
+      log_success "Spawned replacement for ${worker_id}"
     fi
   fi
 done

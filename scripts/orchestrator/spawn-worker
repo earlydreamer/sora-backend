@@ -105,12 +105,16 @@ ensure_dirs
 init_state
 
 # --from-queue: pop next item from queue
+# If tmux creation later fails, push the item back [C4]
+queue_item_backup=""
 if [ $from_queue -eq 1 ]; then
   queue_item=$(queue_pop) || { log_error "Failed to pop from queue"; exit 1; }
+  queue_item_backup="$queue_item"
   agent=$(echo "$queue_item" | jq -r '.agent')
   slug=$(echo "$queue_item" | jq -r '.slug')
   task_ref=$(echo "$queue_item" | jq -r '.task_ref')
   spec_file=$(echo "$queue_item" | jq -r '.spec_path // ""')
+  _q_priority=$(echo "$queue_item" | jq -r '.priority // 5')
   log_info "Loaded from queue: agent=${agent} slug=${slug} task_ref=${task_ref}"
 fi
 
@@ -121,61 +125,96 @@ if [ -z "$agent" ] || [ -z "$slug" ] || [ -z "$task_ref" ]; then
   exit 1
 fi
 
-# Generate worker ID
+# Generate worker ID — window_name does NOT re-prefix worker_id [C1]
 worker_id=$(next_worker_id)
-window_name="worker-${worker_id}-${agent}-${slug}"
+window_name="${worker_id}-${agent}-${slug}"
 log_file="${LOGS_DIR}/${worker_id}.log"
 worker_json="${WORKERS_DIR}/${worker_id}.json"
 
-# Create tmux window
+# Create tmux window — restore queue item on failure [C4]
 log_info "Creating tmux window: ${window_name}"
-tmux new-window -t sora-backend -n "${window_name}" -d -c "${REPO_ROOT}"
-tmux set-window-option -t "sora-backend:${window_name}" remain-on-exit on
+if ! tmux new-window -t "${SESSION_NAME}" -n "${window_name}" -d -c "${REPO_ROOT}" 2>/dev/null; then
+  if [ -n "$queue_item_backup" ]; then
+    queue_push \
+      "$(echo "$queue_item_backup" | jq -r '.agent')" \
+      "$(echo "$queue_item_backup" | jq -r '.slug')" \
+      "$(echo "$queue_item_backup" | jq -r '.task_ref')" \
+      "$(echo "$queue_item_backup" | jq -r '.spec_path // ""')" \
+      "$_q_priority"
+    log_warn "Restored queue item after tmux failure"
+  fi
+  log_error "Failed to create tmux window: ${window_name}"
+  exit 1
+fi
+tmux set-window-option -t "${SESSION_NAME}:${window_name}" remain-on-exit on
 
-# --split-log: split window into main pane (70%) and log pane (30%)
+# --split-log: split window into main pane (70%) and log pane (30%) [H1]
+# After split, pane 1 (bottom) is active — explicitly send commands to pane 0 (top/main)
 if [ $split_log -eq 1 ]; then
   log_info "Splitting window for log pane"
-  tmux split-window -t "sora-backend:${window_name}" -v -p 30 -c "${REPO_ROOT}"
-  tmux send-keys -t "sora-backend:${window_name}.bottom" "tail -f '${log_file}'" Enter
+  tmux split-window -t "${SESSION_NAME}:${window_name}.0" -v -p 30 -c "${REPO_ROOT}"
+  tmux send-keys -t "${SESSION_NAME}:${window_name}.1" "tail -f '${log_file}'" Enter
 fi
 
-# Create worker JSON
+# Create worker JSON using jq --arg to safely handle special characters in values [L1]
 log_info "Registering worker: ${worker_id}"
 if [ $use_retry -eq 1 ]; then
-  cat > "${worker_json}" <<EOF
-{
-  "worker_id": "${worker_id}",
-  "agent": "${agent}",
-  "tmux_window": "${window_name}",
-  "status": "starting",
-  "task_ref": "${task_ref}",
-  "spec_path": "${spec_file}",
-  "log_path": "${log_file}",
-  "started_at": "$(iso8601_now)",
-  "last_heartbeat": "$(iso8601_now)",
-  "last_output_at": null,
-  "owner": "controller",
-  "retry_count": 0,
-  "max_retries": ${max_retries}
-}
-EOF
+  jq -n \
+    --arg worker_id "${worker_id}" \
+    --arg agent "${agent}" \
+    --arg tmux_window "${window_name}" \
+    --arg task_ref "${task_ref}" \
+    --arg spec_path "${spec_file}" \
+    --arg log_path "${log_file}" \
+    --arg ts "$(iso8601_now)" \
+    --argjson max_retries "${max_retries}" \
+    '{
+      worker_id: $worker_id,
+      agent: $agent,
+      tmux_window: $tmux_window,
+      status: "starting",
+      task_ref: $task_ref,
+      spec_path: $spec_path,
+      log_path: $log_path,
+      started_at: $ts,
+      last_heartbeat: $ts,
+      last_output_at: null,
+      owner: "controller",
+      retry_count: 0,
+      max_retries: $max_retries
+    }' > "${worker_json}"
 else
-  cat > "${worker_json}" <<EOF
-{
-  "worker_id": "${worker_id}",
-  "agent": "${agent}",
-  "tmux_window": "${window_name}",
-  "status": "starting",
-  "task_ref": "${task_ref}",
-  "spec_path": "${spec_file}",
-  "log_path": "${log_file}",
-  "started_at": "$(iso8601_now)",
-  "last_heartbeat": "$(iso8601_now)",
-  "last_output_at": null,
-  "owner": "controller"
-}
-EOF
+  jq -n \
+    --arg worker_id "${worker_id}" \
+    --arg agent "${agent}" \
+    --arg tmux_window "${window_name}" \
+    --arg task_ref "${task_ref}" \
+    --arg spec_path "${spec_file}" \
+    --arg log_path "${log_file}" \
+    --arg ts "$(iso8601_now)" \
+    '{
+      worker_id: $worker_id,
+      agent: $agent,
+      tmux_window: $tmux_window,
+      status: "starting",
+      task_ref: $task_ref,
+      spec_path: $spec_path,
+      log_path: $log_path,
+      started_at: $ts,
+      last_heartbeat: $ts,
+      last_output_at: null,
+      owner: "controller"
+    }' > "${worker_json}"
 fi
+
+# Update state.json workers[] array [C5]
+local_tmp=$(mktemp)
+jq --arg wid "${worker_id}" \
+   --arg agent "${agent}" \
+   --arg window "${window_name}" \
+   '.workers += [{worker_id: $wid, agent: $agent, tmux_window: $window, status: "starting"}]' \
+   "${STATE_FILE}" > "$local_tmp"
+mv "$local_tmp" "${STATE_FILE}"
 
 # Prepare initial command
 if [ $auto_start -eq 1 ]; then
@@ -190,20 +229,25 @@ elif [ -n "$initial_command" ]; then
   log_info "Custom command: ${initial_command}"
 fi
 
-# Send initial command if specified
+# Send initial command to pane 0 (main worker pane) [H1b]
+# When --split-log is used pane 1 is active after split, so always target pane .0
 if [ -n "$initial_command" ]; then
-  log_info "Sending initial command to window"
+  log_info "Sending initial command to window pane 0"
   # Escape single quotes in command for tmux send-keys
   initial_command=${initial_command//\'/\'\\\'\'}
-  tmux send-keys -t "sora-backend:${window_name}" "${initial_command}" Enter
+  if [ $split_log -eq 1 ]; then
+    # Wrap command with tee so output also goes to log file [H1a]
+    tmux send-keys -t "${SESSION_NAME}:${window_name}.0" "{ ${initial_command}; } 2>&1 | tee -a '${log_file}'" Enter
+  else
+    tmux send-keys -t "${SESSION_NAME}:${window_name}.0" "${initial_command}" Enter
+  fi
 fi
 
-# Log the event
+# Log the spawn event
 echo "[$(date +'%Y-%m-%d %H:%M:%S')] Worker spawned: ${worker_id} (${agent}/${slug})" >> "${log_file}"
 
-# Update state.json
 log_success "Worker spawned: ${worker_id}"
-log_info "Window: sora-backend:${window_name}"
+log_info "Window: ${SESSION_NAME}:${window_name}"
 log_info "Log: ${log_file}"
 log_info "State: ${worker_json}"
 

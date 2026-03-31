@@ -61,12 +61,16 @@ if [ ! -f "$worker_json" ]; then
   exit 1
 fi
 
-window_name=$(jq -r '.tmux_window' "$worker_json")
-log_info "Capturing ${lines} lines from ${window_name}"
+# Validate JSON before reading [M2]
+validate_worker_json "$worker_json" || exit 1
 
-# Capture pane output
-if tmux capture-pane -t "sora-backend:${window_name}" -p -S "-${lines}" 2>/dev/null; then
-  log_success "Captured output from ${worker_id}"
+window_name=$(jq -r '.tmux_window' "$worker_json")
+log_info "Capturing ${lines} lines from ${window_name}" # log_info now goes to stderr [H2]
+
+# Capture pane 0 (main worker pane) explicitly to avoid hitting log pane [H3]
+# tmux target syntax: session:window.pane
+if tmux capture-pane -t "${SESSION_NAME}:${window_name}.0" -p -S "-${lines}" 2>/dev/null; then
+  log_success "Captured output from ${worker_id}" # log_success now goes to stderr [H2]
 else
   log_error "Failed to capture from ${window_name}"
   exit 1

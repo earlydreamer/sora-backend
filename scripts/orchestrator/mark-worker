@@ -13,7 +13,7 @@ Update worker status and record the transition.
 
 Arguments:
   worker-id            Worker ID (e.g., worker-001)
-  status               New status: done|blocked|failed|running
+  status               New status: done|blocked|failed|running|retrying
   reason               Optional reason (for blocked/failed)
 
 Options:
@@ -56,6 +56,15 @@ if [ -z "$worker_id" ] || [ -z "$status" ]; then
   exit 1
 fi
 
+# Validate status value [L2]
+case "$status" in
+  done|blocked|failed|running|retrying|starting|stale) ;;
+  *)
+    log_error "Invalid status '${status}'. Allowed: done, blocked, failed, running, retrying, starting, stale"
+    exit 1
+    ;;
+esac
+
 ensure_dirs
 
 worker_json="${WORKERS_DIR}/${worker_id}.json"
@@ -63,6 +72,9 @@ if [ ! -f "$worker_json" ]; then
   log_error "Worker not found: ${worker_id}"
   exit 1
 fi
+
+# Validate JSON before reading [M2]
+validate_worker_json "$worker_json" || exit 1
 
 # Update JSON
 tmp_json=$(mktemp)
