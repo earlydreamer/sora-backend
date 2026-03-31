@@ -12,7 +12,8 @@ Usage: recover-session [OPTIONS]
 Validate .orchestrator state against actual tmux windows and normalize.
 
 Options:
-  --auto-fix          Automatically fix state mismatches
+  --auto-fix          Automatically fix state mismatches; also auto-retries
+                      failed workers when retry_count < max_retries
   --help              Show this help message
 
 EOF
@@ -76,6 +77,31 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
       jq '.status = "stale"' "$worker_file" > "$tmp_json"
       mv "$tmp_json" "$worker_file"
       log_info "Marked ${worker_id} as stale"
+    fi
+  fi
+
+  # Auto-retry failed workers when retry_count < max_retries
+  if [ $auto_fix -eq 1 ] && [ "$status" = "failed" ]; then
+    retry_count=$(jq -r '.retry_count // 0' "$worker_file" 2>/dev/null)
+    wmax_retries=$(jq -r '.max_retries // 0' "$worker_file" 2>/dev/null)
+    if [ "$wmax_retries" -gt 0 ] && [ "$retry_count" -lt "$wmax_retries" ]; then
+      log_info "Auto-retrying ${worker_id} (retry ${retry_count}/${wmax_retries})"
+      # Increment retry_count
+      tmp_json=$(mktemp)
+      new_retry_count=$((retry_count + 1))
+      jq --argjson rc "$new_retry_count" '.retry_count = $rc' "$worker_file" > "$tmp_json"
+      mv "$tmp_json" "$worker_file"
+      # Re-spawn using same parameters
+      w_agent=$(jq -r '.agent' "$worker_file")
+      w_slug=$(jq -r '.tmux_window' "$worker_file" | sed 's/^worker-[0-9]*-[^-]*-//')
+      w_task_ref=$(jq -r '.task_ref' "$worker_file")
+      w_spec_path=$(jq -r '.spec_path // ""' "$worker_file")
+      spawn_args=("$w_agent" "$w_slug" "$w_task_ref" "--retry" "$wmax_retries")
+      if [ -n "$w_spec_path" ]; then
+        spawn_args+=(--spec "$w_spec_path")
+      fi
+      "$(dirname "$0")/spawn-worker" "${spawn_args[@]}"
+      log_success "Re-spawned ${worker_id} as new worker"
     fi
   fi
 done

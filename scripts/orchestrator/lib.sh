@@ -86,6 +86,94 @@ tmux_session_exists() {
   tmux has-session -t sora-backend 2>/dev/null
 }
 
+# Queue file path
+QUEUE_FILE="${ORCHESTRATOR_DIR}/queue.json"
+
+# Generate next queue item ID
+next_queue_id() {
+  local count
+  if [ -f "${QUEUE_FILE}" ]; then
+    count=$(jq '.queue | length' "${QUEUE_FILE}" 2>/dev/null || echo 0)
+  else
+    count=0
+  fi
+  printf "q-%03d" $((count + 1))
+}
+
+# queue_push: add an item to the queue
+# Args: agent slug task_ref spec_path priority
+queue_push() {
+  local agent="$1"
+  local slug="$2"
+  local task_ref="$3"
+  local spec_path="${4:-}"
+  local priority="${5:-5}"
+  local qid
+  qid=$(next_queue_id)
+  local enqueued_at
+  enqueued_at=$(iso8601_now)
+
+  if [ ! -f "${QUEUE_FILE}" ]; then
+    echo '{"queue":[]}' > "${QUEUE_FILE}"
+  fi
+
+  local tmp_json
+  tmp_json=$(mktemp)
+  jq \
+    --arg id "$qid" \
+    --arg agent "$agent" \
+    --arg slug "$slug" \
+    --arg task_ref "$task_ref" \
+    --arg spec_path "$spec_path" \
+    --argjson priority "$priority" \
+    --arg enqueued_at "$enqueued_at" \
+    '.queue += [{
+      "id": $id,
+      "agent": $agent,
+      "slug": $slug,
+      "task_ref": $task_ref,
+      "spec_path": $spec_path,
+      "priority": $priority,
+      "enqueued_at": $enqueued_at
+    }] | .queue |= sort_by(.priority)' \
+    "${QUEUE_FILE}" > "$tmp_json"
+  mv "$tmp_json" "${QUEUE_FILE}"
+}
+
+# queue_pop: output first item as JSON and remove it from queue
+queue_pop() {
+  if [ ! -f "${QUEUE_FILE}" ]; then
+    log_error "Queue file not found: ${QUEUE_FILE}"
+    return 1
+  fi
+
+  local count
+  count=$(jq '.queue | length' "${QUEUE_FILE}" 2>/dev/null || echo 0)
+  if [ "$count" -eq 0 ]; then
+    log_error "Queue is empty"
+    return 1
+  fi
+
+  # Output the first item
+  jq '.queue[0]' "${QUEUE_FILE}"
+
+  # Remove the first item from queue
+  local tmp_json
+  tmp_json=$(mktemp)
+  jq '.queue = .queue[1:]' "${QUEUE_FILE}" > "$tmp_json"
+  mv "$tmp_json" "${QUEUE_FILE}"
+}
+
+# queue_list: output full queue.json
+queue_list() {
+  if [ ! -f "${QUEUE_FILE}" ]; then
+    echo '{"queue":[]}'
+    return
+  fi
+  cat "${QUEUE_FILE}"
+}
+
 export -f log_info log_success log_warn log_error
 export -f ensure_dirs init_state next_worker_id iso8601_now validate_worker_json tmux_session_exists
-export REPO_ROOT ORCHESTRATOR_DIR STATE_FILE WORKERS_DIR LOGS_DIR
+export -f next_queue_id queue_push queue_pop queue_list
+export REPO_ROOT ORCHESTRATOR_DIR STATE_FILE WORKERS_DIR LOGS_DIR QUEUE_FILE
