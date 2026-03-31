@@ -1,0 +1,154 @@
+#!/bin/bash
+# spawn-worker: Create new tmux window for a worker agent
+
+set -euo pipefail
+
+source "$(dirname "$0")/lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: spawn-worker [OPTIONS] <agent> <slug> <task-ref>
+
+Create a new tmux window and register a worker.
+
+Arguments:
+  agent           Agent type: codex, gemini, etc.
+  slug            Brief slug for the task (e.g., routes, auth)
+  task-ref        Task reference or spec path (e.g., task-1, docs/tasks/2026-03-31-routes.md)
+
+Options:
+  --spec FILE          Path to task specification file
+  --auto-start         Automatically start the agent with task command
+  --command CMD        Initial command to send to the window
+  --help               Show this help message
+
+Examples:
+  spawn-worker codex routes task-1
+  spawn-worker codex routes task-1 --spec docs/tasks/2026-03-31-routes.md --auto-start
+  spawn-worker codex auth auth-impl --command "npm run build && npm run lint"
+
+EOF
+}
+
+# Parse arguments
+agent=""
+slug=""
+task_ref=""
+spec_file=""
+auto_start=0
+initial_command=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --spec)
+      spec_file="$2"
+      shift 2
+      ;;
+    --auto-start)
+      auto_start=1
+      shift
+      ;;
+    --command)
+      initial_command="$2"
+      shift 2
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      log_error "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+    *)
+      if [ -z "$agent" ]; then
+        agent="$1"
+      elif [ -z "$slug" ]; then
+        slug="$1"
+      elif [ -z "$task_ref" ]; then
+        task_ref="$1"
+      else
+        log_error "Too many positional arguments"
+        usage
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+# Validate required arguments
+if [ -z "$agent" ] || [ -z "$slug" ] || [ -z "$task_ref" ]; then
+  log_error "Missing required arguments"
+  usage
+  exit 1
+fi
+
+# Setup directories
+ensure_dirs
+init_state
+
+# Generate worker ID
+worker_id=$(next_worker_id)
+window_name="worker-${worker_id}-${agent}-${slug}"
+log_file="${LOGS_DIR}/${worker_id}.log"
+worker_json="${WORKERS_DIR}/${worker_id}.json"
+
+# Create tmux window
+log_info "Creating tmux window: ${window_name}"
+tmux new-window -t sora-backend -n "${window_name}" -d -c "${REPO_ROOT}"
+tmux set-window-option -t "sora-backend:${window_name}" remain-on-exit on
+
+# Create worker JSON
+log_info "Registering worker: ${worker_id}"
+cat > "${worker_json}" <<EOF
+{
+  "worker_id": "${worker_id}",
+  "agent": "${agent}",
+  "tmux_window": "${window_name}",
+  "status": "starting",
+  "task_ref": "${task_ref}",
+  "spec_path": "${spec_file}",
+  "log_path": "${log_file}",
+  "started_at": "$(iso8601_now)",
+  "last_heartbeat": "$(iso8601_now)",
+  "last_output_at": null,
+  "owner": "controller"
+}
+EOF
+
+# Prepare initial command
+if [ $auto_start -eq 1 ]; then
+  # Auto-start mode: inject claude command with spec
+  if [ -z "$spec_file" ]; then
+    initial_command="cd '${REPO_ROOT}' && claude '${task_ref}를 읽고 구현해줘'"
+  else
+    initial_command="cd '${REPO_ROOT}' && claude '${spec_file}를 읽고 구현해줘'"
+  fi
+  log_info "Auto-start enabled: will inject claude command"
+elif [ -n "$initial_command" ]; then
+  log_info "Custom command: ${initial_command}"
+fi
+
+# Send initial command if specified
+if [ -n "$initial_command" ]; then
+  log_info "Sending initial command to window"
+  # Escape single quotes in command for tmux send-keys
+  initial_command=${initial_command//\'/\'\\\'\'}
+  tmux send-keys -t "sora-backend:${window_name}" "${initial_command}" Enter
+fi
+
+# Log the event
+echo "[$(date +'%Y-%m-%d %H:%M:%S')] Worker spawned: ${worker_id} (${agent}/${slug})" >> "${log_file}"
+
+# Update state.json
+log_success "Worker spawned: ${worker_id}"
+log_info "Window: sora-backend:${window_name}"
+log_info "Log: ${log_file}"
+log_info "State: ${worker_json}"
+
+# Optional: Print JSON output for automation
+if [ "${OUTPUT_JSON:-0}" = "1" ]; then
+  cat "${worker_json}"
+fi

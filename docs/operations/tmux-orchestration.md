@@ -198,8 +198,121 @@ tmux setw -t sora-backend:worker-001-codex-routes remain-on-exit on
 - [ ] `tmux attach -t sora-backend`로 접속 가능하다.
 - [ ] `control` window와 샘플 `worker-*` window를 수동으로 열고 닫을 수 있다.
 
+## Helper Script 사용법
+
+2단계부터 다음 5개 helper script를 사용해 워커를 자동으로 관리할 수 있다. 각 script는 `.orchestrator/` 상태 파일을 읽고 쓰며 tmux와 통신한다.
+
+### spawn-worker
+
+워커 생성 및 등록. 선택적으로 초기 명령을 자동 주입할 수 있다.
+
+**기본 사용:**
+```bash
+scripts/orchestrator/spawn-worker codex routes task-1
+```
+
+**자동 시작 (--auto-start):**
+```bash
+scripts/orchestrator/spawn-worker codex routes task-1 \
+  --spec "docs/tasks/2026-03-31-routes.md" \
+  --auto-start
+```
+
+이 경우 새 window가 생성된 뒤 자동으로:
+```bash
+cd /mnt/d/Projects/sora/sora-backend && claude "docs/tasks/2026-03-31-routes.md를 읽고 구현해줘"
+```
+
+**커스텀 명령:**
+```bash
+scripts/orchestrator/spawn-worker codex auth auth-impl \
+  --command "npm run build && npm run lint"
+```
+
+### list-workers
+
+등록된 모든 워커와 실제 tmux window 상태를 비교해 조회한다.
+
+**인간 친화적 출력:**
+```bash
+scripts/orchestrator/list-workers
+```
+
+**JSON 출력 (프로그래매틱 처리용):**
+```bash
+scripts/orchestrator/list-workers --json
+```
+
+### capture-worker
+
+특정 워커의 최근 출력을 캡처한다. 복구, 디버깅, 상태 확인에 유용하다.
+
+```bash
+scripts/orchestrator/capture-worker worker-001
+scripts/orchestrator/capture-worker worker-001 --lines 100
+```
+
+### mark-worker
+
+워커의 상태를 명시적으로 업데이트하고 전이를 기록한다.
+
+```bash
+scripts/orchestrator/mark-worker worker-001 running
+scripts/orchestrator/mark-worker worker-001 done
+scripts/orchestrator/mark-worker worker-001 blocked "DB 연결 필요"
+scripts/orchestrator/mark-worker worker-001 failed "타임아웃"
+```
+
+### recover-session
+
+`.orchestrator/` 상태 파일과 실제 tmux window를 대조하고 불일치를 찾는다.
+
+```bash
+# 상태 확인만
+scripts/orchestrator/recover-session
+
+# 자동 수정
+scripts/orchestrator/recover-session --auto-fix
+```
+
+## .orchestrator 상태 파일 구조
+
+### state.json 예시
+
+```json
+{
+  "session_id": "sora-backend",
+  "repo_path": "/mnt/d/Projects/sora/sora-backend",
+  "control_window": "control",
+  "active_spec": "docs/tasks/2026-03-31-routes.md",
+  "controller": {
+    "agent": "claude",
+    "status": "running",
+    "last_heartbeat": "2026-03-31T15:35:00+0900"
+  },
+  "workers": ["worker-001", "worker-002"]
+}
+```
+
+### worker-*.json 예시
+
+```json
+{
+  "worker_id": "worker-001",
+  "agent": "codex",
+  "tmux_window": "worker-001-codex-routes",
+  "status": "running",
+  "task_ref": "task-1",
+  "spec_path": "docs/tasks/2026-03-31-routes.md",
+  "log_path": ".orchestrator/logs/worker-001.log",
+  "started_at": "2026-03-31T15:35:00+0900",
+  "last_heartbeat": "2026-03-31T15:40:00+0900",
+  "last_output_at": "2026-03-31T15:40:00+0900",
+  "owner": "controller"
+}
+```
+
 ## 다음 단계
 
-- 2단계에서 helper script를 추가한다.
-- 그 뒤 `start-harness` 또는 별도 skill에서 helper script를 호출하게 연결한다.
+- 3단계에서 `start-harness` 또는 별도 skill에서 helper script를 호출하게 연결한다.
 - 시범 적용에서 드러난 경로 문제나 복구 절차 누락을 다시 문서에 반영한다.

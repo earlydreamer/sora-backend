@@ -1,0 +1,78 @@
+#!/bin/bash
+# mark-worker: Update worker status
+
+set -euo pipefail
+
+source "$(dirname "$0")/lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: mark-worker [OPTIONS] <worker-id> <status> [reason]
+
+Update worker status and record the transition.
+
+Arguments:
+  worker-id            Worker ID (e.g., worker-001)
+  status               New status: done|blocked|failed|running
+  reason               Optional reason (for blocked/failed)
+
+Options:
+  --help               Show this help message
+
+EOF
+}
+
+worker_id=""
+status=""
+reason=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      log_error "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+    *)
+      if [ -z "$worker_id" ]; then
+        worker_id="$1"
+      elif [ -z "$status" ]; then
+        status="$1"
+      else
+        reason="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$worker_id" ] || [ -z "$status" ]; then
+  log_error "Missing required arguments"
+  usage
+  exit 1
+fi
+
+ensure_dirs
+
+worker_json="${WORKERS_DIR}/${worker_id}.json"
+if [ ! -f "$worker_json" ]; then
+  log_error "Worker not found: ${worker_id}"
+  exit 1
+fi
+
+# Update JSON
+tmp_json=$(mktemp)
+jq --arg status "$status" --arg reason "$reason" --arg timestamp "$(iso8601_now)" \
+  '.status = $status | .last_heartbeat = $timestamp | if $reason != "" then .blocker_reason = $reason else . end' \
+  "$worker_json" > "$tmp_json"
+
+mv "$tmp_json" "$worker_json"
+log_success "Worker marked: ${worker_id} status=${status}"
+
+if [ -n "$reason" ]; then
+  log_info "Reason: ${reason}"
+fi

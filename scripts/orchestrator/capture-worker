@@ -1,0 +1,73 @@
+#!/bin/bash
+# capture-worker: Capture output from a specific worker window
+
+set -euo pipefail
+
+source "$(dirname "$0")/lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: capture-worker [OPTIONS] <worker-id>
+
+Capture recent output from a worker's tmux window.
+
+Arguments:
+  worker-id            Worker ID (e.g., worker-001)
+
+Options:
+  --lines N            Number of lines to capture (default: 50)
+  --help               Show this help message
+
+EOF
+}
+
+worker_id=""
+lines=50
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --lines)
+      lines="$2"
+      shift 2
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      log_error "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+    *)
+      worker_id="$1"
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$worker_id" ]; then
+  log_error "Missing worker-id argument"
+  usage
+  exit 1
+fi
+
+ensure_dirs
+
+# Get worker JSON to find tmux window name
+worker_json="${WORKERS_DIR}/${worker_id}.json"
+if [ ! -f "$worker_json" ]; then
+  log_error "Worker not found: ${worker_id}"
+  exit 1
+fi
+
+window_name=$(jq -r '.tmux_window' "$worker_json")
+log_info "Capturing ${lines} lines from ${window_name}"
+
+# Capture pane output
+if tmux capture-pane -t "sora-backend:${window_name}" -p -S "-${lines}" 2>/dev/null; then
+  log_success "Captured output from ${worker_id}"
+else
+  log_error "Failed to capture from ${window_name}"
+  exit 1
+fi
