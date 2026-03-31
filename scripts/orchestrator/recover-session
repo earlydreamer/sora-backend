@@ -1,0 +1,91 @@
+#!/bin/bash
+# recover-session: Validate and recover orchestration state
+
+set -euo pipefail
+
+source "$(dirname "$0")/lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: recover-session [OPTIONS]
+
+Validate .orchestrator state against actual tmux windows and normalize.
+
+Options:
+  --auto-fix          Automatically fix state mismatches
+  --help              Show this help message
+
+EOF
+}
+
+auto_fix=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --auto-fix)
+      auto_fix=1
+      shift
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      log_error "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+ensure_dirs
+init_state
+
+log_info "Starting session recovery..."
+
+# Get actual tmux windows
+mapfile -t actual_windows < <(tmux list-windows -t sora-backend -F "#{window_name}" 2>/dev/null || true)
+
+# Check registered workers
+issues=0
+for worker_file in "${WORKERS_DIR}"/worker-*.json; do
+  if [ ! -f "$worker_file" ]; then
+    continue
+  fi
+
+  worker_id=$(jq -r '.worker_id' "$worker_file")
+  window_name=$(jq -r '.tmux_window' "$worker_file")
+  status=$(jq -r '.status' "$worker_file")
+
+  # Check if window exists
+  window_found=0
+  for actual_window in "${actual_windows[@]}"; do
+    if [ "$actual_window" = "$window_name" ]; then
+      window_found=1
+      break
+    fi
+  done
+
+  if [ $window_found -eq 0 ]; then
+    log_warn "Window missing for ${worker_id} (${window_name})"
+    ((issues++))
+
+    if [ $auto_fix -eq 1 ]; then
+      # Mark as stale
+      tmp_json=$(mktemp)
+      jq '.status = "stale"' "$worker_file" > "$tmp_json"
+      mv "$tmp_json" "$worker_file"
+      log_info "Marked ${worker_id} as stale"
+    fi
+  fi
+done
+
+log_info "Recovery check complete: ${issues} issues found"
+
+if [ $issues -eq 0 ]; then
+  log_success "Session state is healthy"
+  exit 0
+else
+  log_warn "Run with --auto-fix to normalize issues"
+  exit 1
+fi

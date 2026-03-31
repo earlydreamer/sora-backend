@@ -24,7 +24,7 @@
 - **리뷰 기준**: Windows/Linux/Unix 환경 차이에서만 생기는 인코딩, 개행 문자, 실행 비트 차이는 무시하고 실제 코드 동작 변경만 검토한다.
 - **GitHub 파이프라인**: 신규 작업은 `gh` 기반 한국어 issue 생성 → `codex/<issue-number>-brief-slug` 브랜치 작업 → 한국어 PR → `main` merge → issue/PR/브랜치 정리 순서로 진행한다.
 - **개발 로드맵**: [issue #1](https://github.com/earlydreamer/sora-backend/issues/1) 기준으로 `docs/superpowers/plans/2026-03-31-backend-development-roadmap.md`에 다음 개발 순서를 정리했다.
-- **tmux 오케스트레이션**: 1단계 문서 계약으로 `docs/superpowers/specs/2026-03-31-tmux-orchestration-design.md`와 `docs/operations/tmux-orchestration.md`를 기준 문서로 추가했다. 실행은 `tmux window 중심`, 상태 저장은 `MD + JSON` 이중 레이어를 따른다.
+- **tmux 오케스트레이션**: 1단계 문서 계약으로 `docs/superpowers/specs/2026-03-31-tmux-orchestration-design.md`와 `docs/operations/tmux-orchestration.md`를 기준 문서로 추가했고, 2단계 helper script (`spawn-worker`, `list-workers`, `capture-worker`, `mark-worker`, `recover-session`)를 `scripts/orchestrator/`에 구현했다. 실행은 `tmux window 중심`, 상태 저장은 `MD + JSON` 이중 레이어를 따르며, `--auto-start` 옵션으로 자동 트리거를 지원한다.
 
 ## 하네스 상태
 - 상태: done
@@ -69,6 +69,13 @@
 - [x] `/start-harness`가 superpowers/gstack/지원 skill 전체를 대상으로 가장 적절한 흐름을 먼저 선택하도록 오케스트레이션 규칙 강화
 - [x] tmux 오케스트레이션 1단계 문서 계약 반영 (spec, 운영 가이드)
 - [x] 리뷰 시 OS별 인코딩/개행/실행 비트 차이는 무시하고 실제 코드 변경만 보도록 지침 추가
+- [x] tmux 오케스트레이션 2단계 helper script 구현:
+  - spawn-worker (--auto-start 옵션 포함)
+  - list-workers (--json 옵션 포함)
+  - capture-worker
+  - mark-worker
+  - recover-session
+  - lib.sh 공통 함수 라이브러리
 - [x] /review 지적 사항 전체 반영:
   - P2002 동시 register 409 처리 (auth.service.ts)
   - safeDepatureAt → safeDepartureAt 오타 수정 (transit.service.ts, transit.controller.ts)

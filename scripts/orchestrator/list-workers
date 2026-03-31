@@ -1,0 +1,107 @@
+#!/bin/bash
+# list-workers: List all registered workers and their status
+
+set -euo pipefail
+
+source "$(dirname "$0")/lib.sh"
+
+usage() {
+  cat <<EOF
+Usage: list-workers [OPTIONS]
+
+List all registered workers and compare with actual tmux windows.
+
+Options:
+  --json               Output as JSON
+  --help               Show this help message
+
+EOF
+}
+
+output_json=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json)
+      output_json=1
+      shift
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      log_error "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+ensure_dirs
+init_state
+
+# Get list of actual tmux windows
+mapfile -t actual_windows < <(tmux list-windows -t sora-backend -F "#{window_name}" 2>/dev/null || echo "")
+
+# Count workers
+worker_count=$(find "${WORKERS_DIR}" -name "worker-*.json" 2>/dev/null | wc -l)
+
+if [ $output_json -eq 1 ]; then
+  # JSON output
+  echo "{"
+  echo "  \"worker_count\": ${worker_count},"
+  echo "  \"workers\": ["
+
+  first=1
+  for worker_file in "${WORKERS_DIR}"/worker-*.json; do
+    if [ ! -f "$worker_file" ]; then
+      continue
+    fi
+
+    if [ $first -eq 0 ]; then
+      echo ","
+    fi
+    cat "$worker_file"
+    first=0
+  done
+
+  echo "  ],"
+  echo "  \"actual_windows\": ["
+  first=1
+  for window in "${actual_windows[@]}"; do
+    if [ $first -eq 0 ]; then
+      echo ","
+    fi
+    echo "    \"${window}\""
+    first=0
+  done
+  echo "  ]"
+  echo "}"
+else
+  # Human-readable output
+  log_info "Registered workers: ${worker_count}"
+
+  if [ ${#actual_windows[@]} -gt 0 ]; then
+    echo ""
+    echo "tmux Windows:"
+    for window in "${actual_windows[@]}"; do
+      echo "  - ${window}"
+    done
+  fi
+
+  echo ""
+  echo "Worker Details:"
+  for worker_file in "${WORKERS_DIR}"/worker-*.json; do
+    if [ ! -f "$worker_file" ]; then
+      continue
+    fi
+
+    worker_id=$(jq -r '.worker_id' "$worker_file" 2>/dev/null || echo "unknown")
+    agent=$(jq -r '.agent' "$worker_file" 2>/dev/null || echo "unknown")
+    status=$(jq -r '.status' "$worker_file" 2>/dev/null || echo "unknown")
+    task_ref=$(jq -r '.task_ref' "$worker_file" 2>/dev/null || echo "unknown")
+
+    echo "  ${worker_id}: ${agent} | ${task_ref} | status=${status}"
+  done
+fi
