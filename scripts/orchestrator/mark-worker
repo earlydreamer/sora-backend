@@ -76,6 +76,9 @@ fi
 # Validate JSON before reading [M2]
 validate_worker_json "$worker_json" || exit 1
 
+agent=$(jq -r '.agent // "unknown"' "$worker_json")
+window_name=$(jq -r '.tmux_window // ""' "$worker_json")
+
 # Update JSON
 tmp_json=$(mktemp)
 jq --arg status "$status" --arg reason "$reason" --arg timestamp "$(iso8601_now)" \
@@ -83,6 +86,7 @@ jq --arg status "$status" --arg reason "$reason" --arg timestamp "$(iso8601_now)
   "$worker_json" > "$tmp_json"
 
 mv "$tmp_json" "$worker_json"
+upsert_state_worker "$worker_id" "$agent" "$window_name" "$status"
 log_success "Worker marked: ${worker_id} status=${status}"
 
 if [ -n "$reason" ]; then

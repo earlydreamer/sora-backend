@@ -214,13 +214,7 @@ else
 fi
 
 # Update state.json workers[] array [C5]
-local_tmp=$(mktemp)
-jq --arg wid "${worker_id}" \
-   --arg agent "${agent}" \
-   --arg window "${window_name}" \
-   '.workers += [{worker_id: $wid, agent: $agent, tmux_window: $window, status: "starting"}]' \
-   "${STATE_FILE}" > "$local_tmp"
-mv "$local_tmp" "${STATE_FILE}"
+upsert_state_worker "${worker_id}" "${agent}" "${window_name}" "starting"
 
 # Prepare initial command
 if [ $auto_start -eq 1 ]; then

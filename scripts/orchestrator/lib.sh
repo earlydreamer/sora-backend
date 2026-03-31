@@ -65,6 +65,48 @@ init_state() {
   fi
 }
 
+# Upsert a worker entry in state.json so summary state stays aligned with worker JSON files
+upsert_state_worker() {
+  local worker_id="$1"
+  local agent="${2:-unknown}"
+  local tmux_window="${3:-}"
+  local status="${4:-starting}"
+
+  init_state
+
+  local tmp_json
+  tmp_json=$(mktemp)
+  jq \
+    --arg worker_id "$worker_id" \
+    --arg agent "$agent" \
+    --arg tmux_window "$tmux_window" \
+    --arg status "$status" \
+    '
+    .workers = (.workers // [])
+    | .workers |= (
+        if any(.[]?; .worker_id == $worker_id) then
+          map(
+            if .worker_id == $worker_id then
+              .status = $status
+              | if $agent != "" then .agent = $agent else . end
+              | if $tmux_window != "" then .tmux_window = $tmux_window else . end
+            else
+              .
+            end
+          )
+        else
+          . + [{
+            worker_id: $worker_id,
+            agent: $agent,
+            tmux_window: $tmux_window,
+            status: $status
+          }]
+        end
+      )
+    ' "${STATE_FILE}" > "$tmp_json"
+  mv "$tmp_json" "${STATE_FILE}"
+}
+
 # Generate next worker ID using max existing suffix + 1 to avoid races and reuse [C2]
 next_worker_id() {
   local max=0
@@ -188,6 +230,6 @@ queue_list() {
 }
 
 export -f log_info log_success log_warn log_error
-export -f ensure_dirs init_state next_worker_id iso8601_now validate_worker_json tmux_session_exists
+export -f ensure_dirs init_state upsert_state_worker next_worker_id iso8601_now validate_worker_json tmux_session_exists
 export -f next_queue_id queue_push queue_pop queue_list
 export REPO_ROOT ORCHESTRATOR_DIR STATE_FILE WORKERS_DIR LOGS_DIR QUEUE_FILE SESSION_NAME
