@@ -218,28 +218,35 @@ mv "$local_tmp" "${STATE_FILE}"
 
 # Prepare initial command
 if [ $auto_start -eq 1 ]; then
-  # Auto-start mode: inject claude command with spec
-  if [ -z "$spec_file" ]; then
-    initial_command="cd '${REPO_ROOT}' && claude '${task_ref}를 읽고 구현해줘'"
-  else
-    initial_command="cd '${REPO_ROOT}' && claude '${spec_file}를 읽고 구현해줘'"
-  fi
-  log_info "Auto-start enabled: will inject claude command"
+  # Auto-start mode: build agent-specific command
+  task_desc="${task_ref}를 읽고 구현해줘"
+  [ -n "$spec_file" ] && task_desc="${spec_file}를 읽고 구현해줘"
+  case "$agent" in
+    codex)
+      initial_command="cd \"${REPO_ROOT}\" && printf '%s\n' \"${task_desc}\" | codex exec -"
+      ;;
+    *)
+      initial_command="cd \"${REPO_ROOT}\" && claude \"${task_desc}\""
+      ;;
+  esac
+  log_info "Auto-start enabled: will inject ${agent} command"
 elif [ -n "$initial_command" ]; then
   log_info "Custom command: ${initial_command}"
 fi
 
 # Send initial command to pane 0 (main worker pane) [H1b]
-# When --split-log is used pane 1 is active after split, so always target pane .0
+# Write to a temp script to avoid tmux send-keys quoting issues entirely.
 if [ -n "$initial_command" ]; then
   log_info "Sending initial command to window pane 0"
-  # Escape single quotes in command for tmux send-keys
-  initial_command=${initial_command//\'/\'\\\'\'}
+  cmd_script="${LOGS_DIR}/${worker_id}-cmd.sh"
+  printf '#!/bin/bash\n' > "$cmd_script"
+  printf '%s\n' "$initial_command" >> "$cmd_script"
+  chmod +x "$cmd_script"
   if [ $split_log -eq 1 ]; then
-    # Wrap command with tee so output also goes to log file [H1a]
-    tmux send-keys -t "${SESSION_NAME}:${window_name}.0" "{ ${initial_command}; } 2>&1 | tee -a '${log_file}'" Enter
+    # Wrap with tee so output also goes to log file [H1a]
+    tmux send-keys -t "${SESSION_NAME}:${window_name}.0" "bash '${cmd_script}' 2>&1 | tee -a '${log_file}'" Enter
   else
-    tmux send-keys -t "${SESSION_NAME}:${window_name}.0" "${initial_command}" Enter
+    tmux send-keys -t "${SESSION_NAME}:${window_name}.0" "bash '${cmd_script}'" Enter
   fi
 fi
 
