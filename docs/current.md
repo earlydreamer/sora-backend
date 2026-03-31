@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-04-01 00:16
+최종 업데이트: 2026-04-01 00:27
 업데이트 주체: Codex
 
 ## 프로젝트 상태
@@ -32,6 +32,7 @@
 - **GitHub 게이트 원칙**: `1 작업 = 1 이슈 = 1 브랜치 = 1 PR` 구조는 유지하되, `gh` hard gate는 실제 tracked task 생성/PR/merge 단계에서만 강제한다.
 - **분산 책임 명시**: Verify/Correct는 `start-harness`가 직접 수행하는 것이 아니라 gstack, superpowers, repo verification, tmux helper script가 나눠 맡는다.
 - **남은 운영 경고**: 일부 MCP/plugin OAuth `invalid_token` 경고는 남아 있지만, tmux worker 실행 성공/실패를 가르는 blocker는 아니다.
+- **회고 문서**: 하네스 구현 여정과 트러블슈팅을 `docs/history/2026-04-01-harness-implementation-journey.md`에 사람용 기록으로 정리했다.
 
 ## 하네스 상태
 - 상태: done
@@ -125,3 +126,4 @@
 - [x] live tmux smoke + 통합/단위 테스트 재검증
 - [x] `.orchestrator/` 런타임 산출물 git ignore 반영
 - [x] tmux Codex worker runtime isolation 반영 및 실제 live smoke 재검증
+- [x] 하네스 구현 여정 및 트러블슈팅 기록 문서화
