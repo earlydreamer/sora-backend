@@ -10,6 +10,8 @@
 - Tailscale VPN을 통해 SSH로 원격 접근해 실시간으로 세션을 관찰한다.
 - 향후 helper script와 `.orchestrator/` 상태 파일이 붙었을 때도 같은 운영 절차를 재사용한다.
 
+`start-harness`와의 관계도 분명히 한다. `start-harness`는 병렬 워커 경로를 선택하고 진입시키는 얇은 트리거이며, 실제 워커 생성, 상태 집계, 출력 캡처, 복구, 재시도는 이 문서의 helper script가 담당한다.
+
 ## 전제 조건
 
 - Windows PC에 WSL2와 Ubuntu 22.04 이상이 설치돼 있다.
@@ -170,6 +172,13 @@ tmux setw -t sora-backend:worker-001-codex-routes remain-on-exit on
 - `.orchestrator/logs/`
   - worker 로그
 
+### 상태 동기화 원칙
+
+- `workers/*.json`은 개별 워커의 상세 상태를 가진다.
+- `state.json`은 세션 수준 요약 상태를 가진다.
+- `mark-worker`, `recover-session`, `spawn-worker`는 두 계층 상태가 어긋나지 않도록 함께 갱신해야 한다.
+- `list-workers`, `dashboard`, `capture-worker`는 이 런타임 상태를 읽는 경로이며, GitHub readiness와 무관하게 로컬 진단 경로로 사용할 수 있다.
+
 ### git 정책
 
 - 문서와 정적 스크립트는 커밋 대상이다.
@@ -202,6 +211,8 @@ tmux setw -t sora-backend:worker-001-codex-routes remain-on-exit on
 
 2단계부터 다음 5개 helper script를 사용해 워커를 자동으로 관리할 수 있다. 각 script는 `.orchestrator/` 상태 파일을 읽고 쓰며 tmux와 통신한다.
 
+이 helper들은 `/start-harness`가 worker path를 선택했을 때 downstream Verify/Correct를 실제로 수행하는 실행층이다. 즉, 스킬 문서는 "어떤 경로를 탈지"를 정하고, 아래 script는 "그 경로를 어떻게 계속 굴릴지"를 담당한다.
+
 ### spawn-worker
 
 워커 생성 및 등록. 선택적으로 초기 명령을 자동 주입할 수 있다.
@@ -220,8 +231,11 @@ scripts/orchestrator/spawn-worker codex routes task-1 \
 
 이 경우 새 window가 생성된 뒤 자동으로:
 ```bash
-cd /mnt/d/Projects/sora/sora-backend && claude "docs/tasks/2026-03-31-routes.md를 읽고 구현해줘"
+export CODEX_HOME="/mnt/d/Projects/sora/sora-backend/.orchestrator/runtime/codex-home/worker-001"
+cd /mnt/d/Projects/sora/sora-backend && codex exec - < "/mnt/d/Projects/sora/sora-backend/.orchestrator/logs/worker-001-task.txt"
 ```
+
+`spawn-worker`는 Codex agent일 때 worker별 `CODEX_HOME`을 `.orchestrator/runtime/codex-home/<worker-id>`로 분리한다. 이렇게 해야 데스크톱 Codex 앱, 다른 tmux worker, 수동 CLI 실행이 같은 SQLite 상태 DB를 공유하면서 `logs_1.sqlite` 또는 `state_5.sqlite` 경고를 내는 문제를 피할 수 있다. 공유가 필요한 `auth.json`, `config.toml`, `skills`, `plugins`는 링크하고, 상태 DB와 세션 파일은 worker별 런타임에 별도로 생성한다.
 
 **커스텀 명령:**
 ```bash

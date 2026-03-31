@@ -31,6 +31,11 @@ bootstrap 시점에는 먼저 `docs/tasks/` 디렉터리와 `docs/current.md`의
 - 구현 시작 게이트는 slash command가 아니라 `docs/current.md`의 상태와 `docs/tasks/`의 활성 작업 문서다.
 - `/start-harness`는 일반 triage 래퍼가 아니라 오케스트레이터다. 명령어와 프롬프트를 함께 읽고, 지원되는 skill/명령 중 가장 적절한 흐름을 먼저 선택한 뒤 하네스 상태 갱신으로 이어가야 한다.
 - 이 오케스트레이션은 superpowers, gstack, 저장소 운영 문서에 적힌 workflow, 기타 현재 환경에서 사용 가능한 skill/명령 전체를 함께 비교해 결정한다.
+- `/start-harness`는 얇은 트리거여야 한다. 항상 전체 운영 문서를 선적재하지 말고 `AGENTS.md`, `docs/current.md`, 활성 스펙까지만 우선 읽고, GitHub 파이프라인 문서는 실제 tracked task 경로에 진입할 때 지연 로드한다.
+- GitHub readiness는 전역 preflight가 아니라 tracked task 게이트다. 기존 활성 스펙 재개, `docs-only`, 리뷰 해석, tmux 상태 점검은 `gh` 미준비만으로 막지 않는다.
+- Verify와 Correct의 상세 책임은 downstream path에 분산될 수 있다. `start-harness`는 그 책임을 직접 다 수행하기보다 어떤 skill, workflow, tmux helper가 검증과 복구를 맡는지 명시적으로 연결해야 한다.
+- 병렬 워커가 필요한 경우 `/start-harness`는 worker path를 선택해 `spawn-worker`, `list-workers`, `capture-worker`, `mark-worker`, `recover-session`, `dashboard` 흐름으로 넘기고, 세부 모니터링과 복구는 tmux helper가 담당한다.
+- Codex tmux worker는 데스크톱 앱이나 다른 worker와 `CODEX_HOME`의 SQLite 상태 DB를 공유하지 않는다. `spawn-worker`는 worker별 `.orchestrator/runtime/codex-home/<worker-id>`를 준비하고, 공유 설정/인증은 링크하되 `state_5.sqlite`, `logs_1.sqlite`, `sessions/`는 격리된 런타임을 사용한다.
 - Claude는 코드 변경이 필요한 요청에서 직접 구현하지 않는다.
 - Codex는 활성 작업 문서 없이 구현을 시작하지 않는다.
 - 이 문서에서 말하는 작업 스펙, 활성 작업 문서, work spec, intake spec은 모두 `docs/tasks/YYYY-MM-DD-<slug>.md` 형식의 같은 운영 산출물을 뜻한다.

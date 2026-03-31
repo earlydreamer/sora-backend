@@ -72,8 +72,11 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
   fi
 
   worker_id=$(jq -r '.worker_id' "$worker_file")
+  agent=$(jq -r '.agent // "unknown"' "$worker_file")
   window_name=$(jq -r '.tmux_window' "$worker_file")
   status=$(jq -r '.status' "$worker_file")
+
+  upsert_state_worker "$worker_id" "$agent" "$window_name" "$status"
 
   # Check if window exists
   window_found=0
@@ -93,6 +96,7 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
       tmp_json=$(mktemp)
       jq '.status = "stale"' "$worker_file" > "$tmp_json"
       mv "$tmp_json" "$worker_file"
+      upsert_state_worker "$worker_id" "$agent" "$window_name" "stale"
       log_info "Marked ${worker_id} as stale"
     fi
   fi
@@ -137,6 +141,7 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
          '.status = "retrying" | .retry_count = $rc | .last_heartbeat = $ts' \
          "$worker_file" > "$tmp_json"
       mv "$tmp_json" "$worker_file"
+      upsert_state_worker "$worker_id" "$agent" "$window_name" "retrying"
 
       "$(dirname "$0")/spawn-worker" "${spawn_args[@]}"
       log_success "Spawned replacement for ${worker_id}"
