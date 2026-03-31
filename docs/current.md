@@ -1,11 +1,11 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 23:00
-업데이트 주체: Claude
+최종 업데이트: 2026-03-31 23:54
+업데이트 주체: Codex
 
 ## 프로젝트 상태
 
-백엔드 scaffold 완료 + handoff harness/GitHub 작업 파이프라인 반영 완료. DB 연결(Supabase) 및 TMAP API 키 발급 대기 중.
+`start-harness` 트리거 구조와 tmux 오케스트레이션 계약 정비를 완료했다. 기존 백엔드 scaffold는 유지되며, 하네스 문서/skill/스크립트/테스트가 같은 해석으로 동작한다.
 
 ## 활성 컨텍스트
 
@@ -26,10 +26,14 @@
 - **개발 로드맵**: [issue #1](https://github.com/earlydreamer/sora-backend/issues/1) 기준으로 `docs/superpowers/plans/2026-03-31-backend-development-roadmap.md`에 다음 개발 순서를 정리했다.
 - **codex-plugin-cc**: `HAS_CODEX_PLUGIN` probe 변수 추가. 플러그인 설치 후 tmux 없이도 실제 Codex CLI 위임 가능 (tier 2). 설치: `/plugin marketplace add openai/codex-plugin-cc` → `/plugin install codex@openai-codex` → `/reload-plugins` → `/codex:setup`
 - **tmux 오케스트레이션**: 1~5단계 완료. helper script (`spawn-worker`, `list-workers`, `capture-worker`, `mark-worker`, `recover-session`, `dashboard`, `enqueue-worker`)를 `scripts/orchestrator/`에 구현. 4단계에서 TUI 상태판(`dashboard`), 우선순위 큐(`enqueue-worker`), pane 기반 로그(`--split-log`), 자동 재시도(`--retry N`) 추가.
+- **최근 완료 task**: GitHub issue #19 / branch `codex/19-start-harness-orchestration-hardening`
+- **이번 정비 결과**: `start-harness`를 thin trigger + downstream ownership 구조로 재정의하고, 설치본 skill pack과 backend tmux helper script/test 계약을 일치시켰다.
+- **GitHub 게이트 원칙**: `1 작업 = 1 이슈 = 1 브랜치 = 1 PR` 구조는 유지하되, `gh` hard gate는 실제 tracked task 생성/PR/merge 단계에서만 강제한다.
+- **분산 책임 명시**: Verify/Correct는 `start-harness`가 직접 수행하는 것이 아니라 gstack, superpowers, repo verification, tmux helper script가 나눠 맡는다.
 
 ## 하네스 상태
-- 상태: done (4단계 완료)
-- 현재 담당: 없음
+- 상태: done
+- 현재 담당: 사람
 - 활성 스펙: 없음
 - Claude 재판단 필요: 없음
 
@@ -114,3 +118,7 @@
   - jq --arg 이스케이프 (invalid JSON 방지)
   - scripts/test-tmux-unit.sh: 16개 단위 테스트
   - GitHub issue #11, PR #12 통합 및 merge 완료
+- [x] `start-harness` thin trigger + downstream ownership 구조 정비
+- [x] 설치본 `start-harness-pack`, probe.sh, backend tmux helper/test 계약 동기화
+- [x] live tmux smoke + 통합/단위 테스트 재검증
+- [x] `.orchestrator/` 런타임 산출물 git ignore 반영
