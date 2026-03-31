@@ -65,7 +65,7 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
   # Validate JSON before reading [M2]
   if ! validate_worker_json "$worker_file"; then
     log_warn "Skipping corrupt worker file: $worker_file"
-    ((issues++))
+    issues=$((issues + 1))
     continue
   fi
 
@@ -84,7 +84,7 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
 
   if [ $window_found -eq 0 ]; then
     log_warn "Window missing for ${worker_id} (${window_name})"
-    ((issues++))
+    issues=$((issues + 1))
 
     if [ $auto_fix -eq 1 ]; then
       # Mark as stale
@@ -113,6 +113,15 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
       spawn_args=("$w_agent" "$w_slug" "$w_task_ref" "--retry" "$wmax_retries")
       if [ -n "$w_spec_path" ]; then
         spawn_args+=(--spec "$w_spec_path")
+      fi
+      # Re-use original cmd_script if it exists; otherwise fall back to --auto-start
+      old_cmd_script="${LOGS_DIR}/${worker_id}-cmd.sh"
+      if [ -f "$old_cmd_script" ]; then
+        spawn_args+=(--command "bash '${old_cmd_script}'")
+        log_info "Reusing original command script for retry: ${old_cmd_script}"
+      else
+        spawn_args+=(--auto-start)
+        log_info "No cmd_script found — using --auto-start for retry"
       fi
 
       # Mark existing record as 'retrying' before spawning replacement [C3]

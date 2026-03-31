@@ -42,7 +42,7 @@ ensure_dirs
 init_state
 
 # Get list of actual tmux windows
-mapfile -t actual_windows < <(tmux list-windows -t sora-backend -F "#{window_name}" 2>/dev/null || echo "")
+mapfile -t actual_windows < <(tmux list-windows -t "${SESSION_NAME}" -F "#{window_name}" 2>/dev/null || echo "")
 
 # Count workers
 worker_count=$(find "${WORKERS_DIR}" -name "worker-*.json" 2>/dev/null | wc -l)
