@@ -199,6 +199,65 @@ else
   fail_test "queue_push: special chars not preserved, got: $task_ref_out"
 fi
 
+# ── cmd_script generation (auto-start task_desc_file approach) ───────────────
+# Simulate spawn-worker's auto-start logic without invoking tmux.
+
+_test_logs="${TEST_DIR}/logs"
+mkdir -p "$_test_logs"
+
+_build_auto_start_cmd() {
+  local agent="$1" task_desc="$2" worker_id="$3"
+  local task_desc_file="${_test_logs}/${worker_id}-task.txt"
+  printf '%s\n' "${task_desc}" > "${task_desc_file}"
+  case "$agent" in
+    codex)
+      echo "cd \"/repo\" && codex exec - < \"${task_desc_file}\""
+      ;;
+    *)
+      echo "cd \"/repo\" && claude \"\$(cat '${task_desc_file}')\""
+      ;;
+  esac
+}
+
+# codex branch: should contain "codex exec -"
+cmd_codex=$(_build_auto_start_cmd "codex" "auth 구현해줘" "test-001")
+if echo "$cmd_codex" | grep -q "codex exec -"; then
+  ok "auto-start codex: command contains 'codex exec -'"
+else
+  fail_test "auto-start codex: expected 'codex exec -', got: $cmd_codex"
+fi
+
+# claude branch: should contain "claude"
+cmd_claude=$(_build_auto_start_cmd "claude" "auth 구현해줘" "test-002")
+if echo "$cmd_claude" | grep -q "claude"; then
+  ok "auto-start claude: command contains 'claude'"
+else
+  fail_test "auto-start claude: expected 'claude', got: $cmd_claude"
+fi
+
+# task_desc_file should be created with correct content
+task_file="${_test_logs}/test-001-task.txt"
+if [ -f "$task_file" ] && [ "$(cat "$task_file")" = "auth 구현해줘" ]; then
+  ok "auto-start: task_desc_file created with correct content"
+else
+  fail_test "auto-start: task_desc_file missing or wrong content"
+fi
+
+# Special characters in task_desc must not corrupt cmd_script
+cmd_special=$(_build_auto_start_cmd "codex" 'task "with" quotes and $vars' "test-003")
+special_file="${_test_logs}/test-003-task.txt"
+if [ -f "$special_file" ]; then
+  content=$(cat "$special_file")
+  expected='task "with" quotes and $vars'
+  if [ "$content" = "$expected" ]; then
+    ok "auto-start: special chars in task_desc safely stored in task_desc_file"
+  else
+    fail_test "auto-start: special chars mangled, got: $content"
+  fi
+else
+  fail_test "auto-start: task_desc_file not created for special char task"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""

@@ -57,6 +57,7 @@ mapfile -t actual_windows < <(tmux list-windows -t "${SESSION_NAME}" -F "#{windo
 
 # Check registered workers
 issues=0
+unfixable=0
 for worker_file in "${WORKERS_DIR}"/worker-*.json; do
   if [ ! -f "$worker_file" ]; then
     continue
@@ -65,7 +66,8 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
   # Validate JSON before reading [M2]
   if ! validate_worker_json "$worker_file"; then
     log_warn "Skipping corrupt worker file: $worker_file"
-    ((issues++))
+    issues=$((issues + 1))
+    unfixable=$((unfixable + 1))  # auto-fix cannot repair corrupt JSON
     continue
   fi
 
@@ -84,7 +86,7 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
 
   if [ $window_found -eq 0 ]; then
     log_warn "Window missing for ${worker_id} (${window_name})"
-    ((issues++))
+    issues=$((issues + 1))
 
     if [ $auto_fix -eq 1 ]; then
       # Mark as stale
@@ -110,10 +112,23 @@ for worker_file in "${WORKERS_DIR}"/worker-*.json; do
       w_spec_path=$(jq -r '.spec_path // ""' "$worker_file")
       w_slug=$(echo "${window_name}" | sed "s/^${worker_id}-${w_agent}-//")
 
-      spawn_args=("$w_agent" "$w_slug" "$w_task_ref" "--retry" "$wmax_retries")
+      # Pass accumulated retry_count so budget is not reset on the new worker
+      spawn_args=("$w_agent" "$w_slug" "$w_task_ref" "--retry" "$wmax_retries" "--retry-count" "$new_retry_count")
       if [ -n "$w_spec_path" ]; then
         spawn_args+=(--spec "$w_spec_path")
       fi
+      # Re-use original cmd_script if it exists; otherwise fall back to --auto-start
+      old_cmd_script="${LOGS_DIR}/${worker_id}-cmd.sh"
+      if [ -f "$old_cmd_script" ]; then
+        spawn_args+=(--command "bash '${old_cmd_script}'")
+        log_info "Reusing original command script for retry: ${old_cmd_script}"
+      else
+        spawn_args+=(--auto-start)
+        log_info "No cmd_script found — using --auto-start for retry"
+      fi
+
+      # Kill old window if still lingering (remain-on-exit leaves it visible)
+      tmux kill-window -t "${SESSION_NAME}:${window_name}" 2>/dev/null || true
 
       # Mark existing record as 'retrying' before spawning replacement [C3]
       tmp_json=$(mktemp)
@@ -134,6 +149,12 @@ log_info "Recovery check complete: ${issues} issues found"
 if [ $issues -eq 0 ]; then
   log_success "Session state is healthy"
   exit 0
+elif [ $auto_fix -eq 1 ] && [ $unfixable -eq 0 ]; then
+  log_success "Auto-fix applied: ${issues} issue(s) handled"
+  exit 0
+elif [ $auto_fix -eq 1 ] && [ $unfixable -gt 0 ]; then
+  log_warn "Auto-fix applied but ${unfixable} unfixable issue(s) remain (corrupt JSON)"
+  exit 1
 else
   log_warn "Run with --auto-fix to normalize issues"
   exit 1
