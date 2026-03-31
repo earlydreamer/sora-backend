@@ -1,7 +1,7 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 16:25
-업데이트 주체: Codex
+최종 업데이트: 2026-03-31 17:45
+업데이트 주체: Claude
 
 ## 프로젝트 상태
 
@@ -27,10 +27,11 @@
 - **tmux 오케스트레이션**: 1단계 문서 계약으로 `docs/superpowers/specs/2026-03-31-tmux-orchestration-design.md`와 `docs/operations/tmux-orchestration.md`를 기준 문서로 추가했고, 2단계 helper script (`spawn-worker`, `list-workers`, `capture-worker`, `mark-worker`, `recover-session`)를 `scripts/orchestrator/`에 구현했다. 실행은 `tmux window 중심`, 상태 저장은 `MD + JSON` 이중 레이어를 따르며, `--auto-start` 옵션으로 자동 트리거를 지원한다.
 
 ## 하네스 상태
-- 상태: done
-- 현재 담당: Claude (3단계 설계)
-- 활성 스펙: 없음
-- Claude 재판단 필요: 없음 (3단계 진행 전 Claude 리뷰 권장)
+- 상태: claude-in-progress (3단계: start-harness skill 통합)
+- 현재 담당: Claude
+- 활성 스펙: docs/tasks/2026-03-31-tmux-phase3.md
+- GitHub Issue: #7
+- Claude 재판단 필요: 없음
 
 ## 작업 체크리스트
 
