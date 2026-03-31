@@ -1,11 +1,11 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-04-01 00:27
+최종 업데이트: 2026-04-01 13:38
 업데이트 주체: Codex
 
 ## 프로젝트 상태
 
-`start-harness` 트리거 구조와 tmux 오케스트레이션 계약 정비를 완료했고, 실제 tmux Codex worker가 격리 runtime home으로 안정적으로 동작함을 재검증했다. 기존 백엔드 scaffold는 유지되며, 하네스 문서/skill/스크립트/테스트가 같은 해석으로 동작한다.
+`start-harness` 트리거 구조와 tmux 오케스트레이션 계약 정비를 완료한 상태를 유지하면서, GUI 히스토리 추적 관점을 반영한 non-squash merge 기본 정책까지 운영 문서에 반영했다.
 
 ## 활성 컨텍스트
 
@@ -23,11 +23,12 @@
 - **리뷰 루프 제한**: 같은 파일/같은 task에서 reviewer 수정 루프는 최대 2회까지만 반복하고, 이후에는 blocking 이슈만 추가 수정한 뒤 다음 단계로 진행한다.
 - **리뷰 기준**: Windows/Linux/Unix 환경 차이에서만 생기는 인코딩, 개행 문자, 실행 비트 차이는 무시하고 실제 코드 동작 변경만 검토한다.
 - **GitHub 파이프라인**: 신규 작업은 `gh` 기반 한국어 issue 생성 → `codex/<issue-number>-brief-slug` 브랜치 작업 → 한국어 PR → `main` merge → issue/PR/브랜치 정리 순서로 진행한다.
+- **merge 정책**: Fork 같은 GUI Git 클라이언트에서 `main` 히스토리를 바로 추적할 수 있어야 하므로 기본 merge 전략은 non-squash이며, squash는 예외 상황에서만 사용한다.
 - **개발 로드맵**: [issue #1](https://github.com/earlydreamer/sora-backend/issues/1) 기준으로 `docs/superpowers/plans/2026-03-31-backend-development-roadmap.md`에 다음 개발 순서를 정리했다.
 - **codex-plugin-cc**: `HAS_CODEX_PLUGIN` probe 변수 추가. 플러그인 설치 후 tmux 없이도 실제 Codex CLI 위임 가능 (tier 2). 설치: `/plugin marketplace add openai/codex-plugin-cc` → `/plugin install codex@openai-codex` → `/reload-plugins` → `/codex:setup`
 - **tmux 오케스트레이션**: 1~5단계 완료. helper script (`spawn-worker`, `list-workers`, `capture-worker`, `mark-worker`, `recover-session`, `dashboard`, `enqueue-worker`)를 `scripts/orchestrator/`에 구현. 4단계에서 TUI 상태판(`dashboard`), 우선순위 큐(`enqueue-worker`), pane 기반 로그(`--split-log`), 자동 재시도(`--retry N`) 추가.
 - **tmux Codex runtime isolation**: `spawn-worker`는 Codex worker마다 `.orchestrator/runtime/codex-home/<worker-id>`를 준비해 `CODEX_HOME`을 격리한다. 실제 tmux live smoke에서 `TMUX_ISOLATED_OK`, `HAS_LOGS_IO_ERROR=0`, `HAS_STATE_WARNING=0`을 확인했다.
-- **최근 완료 task**: GitHub issue #19 / branch `codex/19-start-harness-orchestration-hardening`
+- **최근 완료 task**: GitHub issue #21 / branch `codex/21-visible-history-merge-policy`
 - **이번 정비 결과**: `start-harness`를 thin trigger + downstream ownership 구조로 재정의하고, 설치본 skill pack과 backend tmux helper script/test 계약을 일치시켰다.
 - **GitHub 게이트 원칙**: `1 작업 = 1 이슈 = 1 브랜치 = 1 PR` 구조는 유지하되, `gh` hard gate는 실제 tracked task 생성/PR/merge 단계에서만 강제한다.
 - **분산 책임 명시**: Verify/Correct는 `start-harness`가 직접 수행하는 것이 아니라 gstack, superpowers, repo verification, tmux helper script가 나눠 맡는다.
@@ -54,6 +55,7 @@
 - [ ] GitHub Actions heartbeat 설정 (Supabase 7일 비활성 방지) — 블로커: Supabase 프로젝트 생성 선행
 
 ### 완료
+- [x] GUI 히스토리 추적을 위한 non-squash merge 정책을 backend 문서에 반영
 - [x] 백엔드 개발 작업 목록과 우선순위 문서화
 - [x] gstack 전역 설치 및 운영 문서화
 - [x] NestJS scaffold (Prisma 7, TypeScript, ESLint)
