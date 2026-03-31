@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 17:45
+최종 업데이트: 2026-03-31 18:30
 업데이트 주체: Claude
 
 ## 프로젝트 상태
@@ -27,11 +27,10 @@
 - **tmux 오케스트레이션**: 1단계 문서 계약으로 `docs/superpowers/specs/2026-03-31-tmux-orchestration-design.md`와 `docs/operations/tmux-orchestration.md`를 기준 문서로 추가했고, 2단계 helper script (`spawn-worker`, `list-workers`, `capture-worker`, `mark-worker`, `recover-session`)를 `scripts/orchestrator/`에 구현했다. 실행은 `tmux window 중심`, 상태 저장은 `MD + JSON` 이중 레이어를 따르며, `--auto-start` 옵션으로 자동 트리거를 지원한다.
 
 ## 하네스 상태
-- 상태: claude-in-progress (3단계: start-harness skill 통합)
-- 현재 담당: Claude
-- 활성 스펙: docs/tasks/2026-03-31-tmux-phase3.md
-- GitHub Issue: #7
-- Claude 재판단 필요: 없음
+- 상태: done (3단계 완료)
+- 현재 담당: 없음
+- 활성 스펙: 없음
+- Claude 재판단 필요: 없음 (Phase 4는 선택사항)
 
 ## 작업 체크리스트
 
@@ -86,3 +85,9 @@
   - GET / healthcheck 반환값 { status: 'ok' } (app.controller.ts, app.service.ts)
   - RequestWithUser 공통 타입 (src/types/request-with-user.ts)
   - ESLint `_`-prefix argsIgnorePattern 추가 (eslint.config.mjs)
+- [x] tmux 오케스트레이션 3단계 start-harness skill 통합:
+  - probe.sh 확장 (HAS_TMUX_ORCHESTRATION, TMUX_SESSION_READY 감지)
+  - SKILL.md 확장 (6번째 오케스트레이션 경로: worker-dispatch-ready 상태 처리)
+  - 병렬 워커 위임 흐름 구현 (30초 폴링, 모니터링 루프, 게이팅)
+  - 테스트 하네스 생성 (test-tmux-integration.sh)
+  - GitHub issue #7, PR #8 통합 및 merge 완료
