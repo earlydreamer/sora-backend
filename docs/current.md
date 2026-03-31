@@ -1,6 +1,6 @@
 # 현재 작업 컨텍스트
 
-최종 업데이트: 2026-03-31 03:01
+최종 업데이트: 2026-03-31 15:35
 업데이트 주체: Codex
 
 ## 프로젝트 상태
@@ -23,6 +23,7 @@
 - **리뷰 루프 제한**: 같은 파일/같은 task에서 reviewer 수정 루프는 최대 2회까지만 반복하고, 이후에는 blocking 이슈만 추가 수정한 뒤 다음 단계로 진행한다.
 - **리뷰 기준**: Windows/Linux/Unix 환경 차이에서만 생기는 인코딩, 개행 문자, 실행 비트 차이는 무시하고 실제 코드 동작 변경만 검토한다.
 - **GitHub 파이프라인**: 신규 작업은 `gh` 기반 한국어 issue 생성 → `codex/<issue-number>-brief-slug` 브랜치 작업 → 한국어 PR → `main` merge → issue/PR/브랜치 정리 순서로 진행한다.
+- **개발 로드맵**: [issue #1](https://github.com/earlydreamer/sora-backend/issues/1) 기준으로 `docs/superpowers/plans/2026-03-31-backend-development-roadmap.md`에 다음 개발 순서를 정리했다.
 
 ## 하네스 상태
 - 상태: done
@@ -35,6 +36,7 @@
 ### 진행 중
 - [ ] Supabase 프로젝트 생성 후 DATABASE_URL 발급 (담당: 사람)
 - [ ] TMAP API 키 발급 (담당: 사람)
+- [ ] 외부 리소스 준비 완료 후 활성 구현 스펙 생성 (담당: Codex)
 
 ### 대기 중 (블로커 있음)
 - [ ] `npx prisma migrate dev --name init` 실행 — 블로커: DATABASE_URL 미설정
@@ -43,6 +45,7 @@
 - [ ] GitHub Actions heartbeat 설정 (Supabase 7일 비활성 방지) — 블로커: Supabase 프로젝트 생성 선행
 
 ### 완료
+- [x] 백엔드 개발 작업 목록과 우선순위 문서화
 - [x] gstack 전역 설치 및 운영 문서화
 - [x] NestJS scaffold (Prisma 7, TypeScript, ESLint)
 - [x] 의존성 설치 (JWT, bcrypt, Prisma, class-validator 등)
