@@ -44,6 +44,7 @@ auto_start=0
 initial_command=""
 split_log=0
 max_retries=0
+initial_retry_count=0
 use_retry=0
 from_queue=0
 
@@ -68,6 +69,10 @@ while [[ $# -gt 0 ]]; do
     --retry)
       max_retries="$2"
       use_retry=1
+      shift 2
+      ;;
+    --retry-count)
+      initial_retry_count="$2"
       shift 2
       ;;
     --from-queue)
@@ -168,6 +173,7 @@ if [ $use_retry -eq 1 ]; then
     --arg log_path "${log_file}" \
     --arg ts "$(iso8601_now)" \
     --argjson max_retries "${max_retries}" \
+    --argjson initial_retry_count "${initial_retry_count}" \
     '{
       worker_id: $worker_id,
       agent: $agent,
@@ -180,7 +186,7 @@ if [ $use_retry -eq 1 ]; then
       last_heartbeat: $ts,
       last_output_at: null,
       owner: "controller",
-      retry_count: 0,
+      retry_count: $initial_retry_count,
       max_retries: $max_retries
     }' > "${worker_json}"
 else
@@ -221,12 +227,16 @@ if [ $auto_start -eq 1 ]; then
   # Auto-start mode: build agent-specific command
   task_desc="${task_ref}를 읽고 구현해줘"
   [ -n "$spec_file" ] && task_desc="${spec_file}를 읽고 구현해줘"
+  # Write task description to a separate file to avoid any quote injection
+  # in the cmd_script when task_desc contains special characters.
+  task_desc_file="${LOGS_DIR}/${worker_id}-task.txt"
+  printf '%s\n' "${task_desc}" > "${task_desc_file}"
   case "$agent" in
     codex)
-      initial_command="cd \"${REPO_ROOT}\" && printf '%s\n' \"${task_desc}\" | codex exec -"
+      initial_command="cd \"${REPO_ROOT}\" && codex exec - < \"${task_desc_file}\""
       ;;
     *)
-      initial_command="cd \"${REPO_ROOT}\" && claude \"${task_desc}\""
+      initial_command="cd \"${REPO_ROOT}\" && claude \"\$(cat '${task_desc_file}')\""
       ;;
   esac
   log_info "Auto-start enabled: will inject ${agent} command"
