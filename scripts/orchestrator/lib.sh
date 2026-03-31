@@ -33,13 +33,14 @@ ORCHESTRATOR_DIR="${REPO_ROOT}/.orchestrator"
 STATE_FILE="${ORCHESTRATOR_DIR}/state.json"
 WORKERS_DIR="${ORCHESTRATOR_DIR}/workers"
 LOGS_DIR="${ORCHESTRATOR_DIR}/logs"
+RUNTIME_DIR="${ORCHESTRATOR_DIR}/runtime"
 
 # Session name derived from repo root basename — not hardcoded [M1]
 SESSION_NAME="$(basename "${REPO_ROOT}")"
 
 # Ensure orchestrator directories exist
 ensure_dirs() {
-  mkdir -p "${ORCHESTRATOR_DIR}" "${WORKERS_DIR}" "${LOGS_DIR}"
+  mkdir -p "${ORCHESTRATOR_DIR}" "${WORKERS_DIR}" "${LOGS_DIR}" "${RUNTIME_DIR}/codex-home"
 }
 
 # Initialize state.json if not exists
@@ -229,7 +230,49 @@ queue_list() {
   cat "${QUEUE_FILE}"
 }
 
+codex_source_home() {
+  printf '%s\n' "${CODEX_HOME:-${HOME}/.codex}"
+}
+
+codex_worker_home_dir() {
+  local worker_id="$1"
+  printf '%s/codex-home/%s\n' "${RUNTIME_DIR}" "${worker_id}"
+}
+
+prepare_codex_worker_home() {
+  local worker_id="$1"
+  local worker_home
+  worker_home="$(codex_worker_home_dir "${worker_id}")"
+  mkdir -p "${worker_home}" "${worker_home}/sessions" "${worker_home}/log" "${worker_home}/tmp"
+
+  local source_home
+  source_home="$(codex_source_home)"
+  local shared_entries=(
+    "auth.json"
+    ".credentials.json"
+    "config.toml"
+    "managed_config.toml"
+    "skills"
+    "plugins"
+    "memories"
+    "models_cache.json"
+    "vendor_imports"
+    "rules"
+    "AGENTS.md"
+  )
+
+  local entry
+  for entry in "${shared_entries[@]}"; do
+    if [ -e "${source_home}/${entry}" ] && [ ! -e "${worker_home}/${entry}" ]; then
+      ln -s "${source_home}/${entry}" "${worker_home}/${entry}"
+    fi
+  done
+
+  printf '%s\n' "${worker_home}"
+}
+
 export -f log_info log_success log_warn log_error
 export -f ensure_dirs init_state upsert_state_worker next_worker_id iso8601_now validate_worker_json tmux_session_exists
 export -f next_queue_id queue_push queue_pop queue_list
-export REPO_ROOT ORCHESTRATOR_DIR STATE_FILE WORKERS_DIR LOGS_DIR QUEUE_FILE SESSION_NAME
+export -f codex_source_home codex_worker_home_dir prepare_codex_worker_home
+export REPO_ROOT ORCHESTRATOR_DIR STATE_FILE WORKERS_DIR LOGS_DIR RUNTIME_DIR QUEUE_FILE SESSION_NAME

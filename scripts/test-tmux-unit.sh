@@ -14,6 +14,15 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 # Override constants before sourcing lib.sh
 export REPO_ROOT="$TEST_DIR/fake-repo"
 mkdir -p "$REPO_ROOT"
+export CODEX_HOME="$TEST_DIR/source-codex-home"
+mkdir -p "$CODEX_HOME"
+for entry in auth.json .credentials.json config.toml skills plugins memories models_cache.json vendor_imports rules AGENTS.md; do
+  if [[ "$entry" == *.* ]] && [[ "$entry" != "skills" ]] && [[ "$entry" != "plugins" ]] && [[ "$entry" != "memories" ]] && [[ "$entry" != "vendor_imports" ]] && [[ "$entry" != "rules" ]]; then
+    printf 'stub\n' > "$CODEX_HOME/$entry"
+  else
+    mkdir -p "$CODEX_HOME/$entry"
+  fi
+done
 
 # Source lib with overridden REPO_ROOT
 source "$ORCHESTRATOR_DIR/lib.sh"
@@ -204,6 +213,33 @@ fi
 
 _test_logs="${TEST_DIR}/logs"
 mkdir -p "$_test_logs"
+RUNTIME_DIR="${TEST_DIR}/runtime"
+
+worker_home_dir="${RUNTIME_DIR}/codex-home/test-001"
+if [ "$(codex_worker_home_dir "test-001")" = "$worker_home_dir" ]; then
+  ok "codex_worker_home_dir returns repo-local runtime path"
+else
+  fail_test "codex_worker_home_dir returned unexpected path: $(codex_worker_home_dir "test-001")"
+fi
+
+prepared_home="$(prepare_codex_worker_home "test-001")"
+if [ "$prepared_home" = "$worker_home_dir" ] && [ -d "$prepared_home" ]; then
+  ok "prepare_codex_worker_home creates worker runtime home"
+else
+  fail_test "prepare_codex_worker_home did not create expected worker home"
+fi
+
+if [ -L "${prepared_home}/config.toml" ] && [ "$(readlink -f "${prepared_home}/config.toml")" = "${CODEX_HOME}/config.toml" ]; then
+  ok "prepare_codex_worker_home links shared config into worker home"
+else
+  fail_test "prepare_codex_worker_home did not link config.toml"
+fi
+
+if [ -d "${prepared_home}/sessions" ] && [ -d "${prepared_home}/log" ] && [ -d "${prepared_home}/tmp" ]; then
+  ok "prepare_codex_worker_home creates isolated runtime directories"
+else
+  fail_test "prepare_codex_worker_home missing isolated runtime directories"
+fi
 
 _build_auto_start_cmd() {
   local agent="$1" task_desc="$2" worker_id="$3"
@@ -211,6 +247,10 @@ _build_auto_start_cmd() {
   printf '%s\n' "${task_desc}" > "${task_desc_file}"
   case "$agent" in
     codex)
+      local worker_home
+      worker_home="$(codex_worker_home_dir "$worker_id")"
+      echo "export CODEX_HOME=\"${worker_home}\""
+      echo "mkdir -p \"${worker_home}/sessions\" \"${worker_home}/log\" \"${worker_home}/tmp\""
       echo "cd \"/repo\" && codex exec - < \"${task_desc_file}\""
       ;;
     *)
@@ -219,8 +259,13 @@ _build_auto_start_cmd() {
   esac
 }
 
-# codex branch: should contain "codex exec -"
+# codex branch: should contain isolated CODEX_HOME and "codex exec -"
 cmd_codex=$(_build_auto_start_cmd "codex" "auth 구현해줘" "test-001")
+if echo "$cmd_codex" | grep -q "export CODEX_HOME=\"${RUNTIME_DIR}/codex-home/test-001\""; then
+  ok "auto-start codex: command exports isolated CODEX_HOME"
+else
+  fail_test "auto-start codex: missing isolated CODEX_HOME export, got: $cmd_codex"
+fi
 if echo "$cmd_codex" | grep -q "codex exec -"; then
   ok "auto-start codex: command contains 'codex exec -'"
 else

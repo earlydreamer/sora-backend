@@ -27,6 +27,7 @@ cleanup_window=""
 cleanup_slug="integration-smoke"
 cleanup_task_ref="integration-smoke-task"
 cleanup_log_prefix=""
+cleanup_runtime_dir=""
 test_queue_id=""
 
 ok() {
@@ -73,6 +74,10 @@ cleanup() {
     rm -f "${cleanup_log_prefix}.log" \
       "${cleanup_log_prefix}-cmd.sh" \
       "${cleanup_log_prefix}-task.txt"
+  fi
+
+  if [ -n "$cleanup_runtime_dir" ]; then
+    rm -rf "$cleanup_runtime_dir"
   fi
 
   if [ "$created_session" -eq 1 ]; then
@@ -223,12 +228,26 @@ fi
 cleanup_worker_id="$(echo "$spawn_output" | jq -r '.worker_id')"
 cleanup_window="$(echo "$spawn_output" | jq -r '.tmux_window')"
 cleanup_log_prefix="${LOGS_DIR}/${cleanup_worker_id}"
+cleanup_runtime_dir="${ORCHESTRATOR_DIR}/runtime/codex-home/${cleanup_worker_id}"
 test_queue_id=""
 
 if [ -n "$cleanup_worker_id" ] && [ "$cleanup_worker_id" != "null" ]; then
   ok "spawn-worker created worker ${cleanup_worker_id}"
 else
   fail_test "spawn-worker did not return a worker id"
+fi
+
+cmd_script="${cleanup_log_prefix}-cmd.sh"
+if [ -f "$cmd_script" ] && grep -Fq "export CODEX_HOME=\"${cleanup_runtime_dir}\"" "$cmd_script"; then
+  ok "spawn-worker injects isolated CODEX_HOME into cmd script"
+else
+  fail_test "spawn-worker cmd script is missing isolated CODEX_HOME"
+fi
+
+if [ -d "$cleanup_runtime_dir" ] && [ -L "${cleanup_runtime_dir}/config.toml" ]; then
+  ok "spawn-worker prepared isolated Codex runtime home"
+else
+  fail_test "spawn-worker did not prepare isolated Codex runtime home"
 fi
 
 sleep 1

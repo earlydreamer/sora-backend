@@ -135,6 +135,10 @@ worker_id=$(next_worker_id)
 window_name="${worker_id}-${agent}-${slug}"
 log_file="${LOGS_DIR}/${worker_id}.log"
 worker_json="${WORKERS_DIR}/${worker_id}.json"
+worker_runtime_home=""
+if [ "${agent}" = "codex" ]; then
+  worker_runtime_home="$(prepare_codex_worker_home "${worker_id}")"
+fi
 
 # Create tmux window — restore queue item on failure [C4]
 log_info "Creating tmux window: ${window_name}"
@@ -243,7 +247,14 @@ fi
 if [ -n "$initial_command" ]; then
   log_info "Sending initial command to window pane 0"
   cmd_script="${LOGS_DIR}/${worker_id}-cmd.sh"
-  printf '#!/bin/bash\n' > "$cmd_script"
+  printf '#!/bin/bash\nset -euo pipefail\n' > "$cmd_script"
+  if [ "${agent}" = "codex" ] && [ -n "${worker_runtime_home}" ]; then
+    printf 'export CODEX_HOME="%s"\n' "${worker_runtime_home}" >> "$cmd_script"
+    printf 'mkdir -p "%s" "%s" "%s"\n' \
+      "${worker_runtime_home}/sessions" \
+      "${worker_runtime_home}/log" \
+      "${worker_runtime_home}/tmp" >> "$cmd_script"
+  fi
   printf '%s\n' "$initial_command" >> "$cmd_script"
   chmod +x "$cmd_script"
   if [ $split_log -eq 1 ]; then
