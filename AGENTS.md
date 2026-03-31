@@ -98,6 +98,7 @@ Claude가 Codex에 작업을 넘길 때는 아래 형식으로 작업 범위를 
 - issue 제목은 한 줄 요약으로 작성한다.
 - issue 본문은 최소한 `배경`, `목표`, `범위`, `완료 조건` 섹션을 포함한다.
 - 완료 조건에는 저장소 필수 검증 명령을 체크리스트로 넣는다.
+- `docs-only` 작업이면 완료 조건을 문서 무결성 확인으로 대체할 수 있다. 이 경우 `build/lint/test` 체크리스트를 강제하지 않는다.
 
 예시:
 ```md
@@ -143,6 +144,7 @@ Claude가 Codex에 작업을 넘길 때는 아래 형식으로 작업 범위를 
 - 브랜치명은 `codex/<issue-number>-brief-slug` 형식을 사용한다.
 - 작업은 issue에 연결된 브랜치에서만 진행한다.
 - 검증이 모두 통과하기 전에는 PR merge를 진행하지 않는다.
+- 단, `docs-only` 작업은 문서 링크, 경로, 문서 간 정합성 확인이 끝나면 merge 가능 상태로 본다.
 - merge 완료 후 issue, PR, 로컬 브랜치, 원격 브랜치가 남아 있으면 작업 완료로 간주하지 않는다.
 - GitHub 작업 절차 상세는 [docs/operations/github-task-pipeline.md](./docs/operations/github-task-pipeline.md)를 따른다.
 
@@ -298,6 +300,7 @@ docs/history/YYYY-MM-DD-<slug>.md
 - 빌드 또는 타입체크 통과 (`npm run build`)
 - 린트 통과 (`npm run lint`)
 - 기존 테스트가 있다면 통과 확인
+- `docs-only` 작업이면 위 명령 대신 수정 문서의 링크, 경로, 참조 문서 일관성을 확인한다.
 
 ### 5-3. 불확실할 때의 행동 원칙
 - 범위가 애매하면 **작게 실행하고 Claude에 보고**한다.

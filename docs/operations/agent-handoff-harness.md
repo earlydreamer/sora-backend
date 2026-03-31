@@ -36,6 +36,7 @@ bootstrap 시점에는 먼저 `docs/tasks/` 디렉터리와 `docs/current.md`의
 - 이 문서에서 말하는 작업 스펙, 활성 작업 문서, work spec, intake spec은 모두 `docs/tasks/YYYY-MM-DD-<slug>.md` 형식의 같은 운영 산출물을 뜻한다.
 - direct-to-codex 요청도 intake와 문서 작성 단계를 거쳐야 한다. 다만 `docs-only`는 활성 구현 스펙이 없을 때만 작업 스펙 없이 처리하는 예외다.
 - `docs-only` 요청은 활성 구현 스펙이 없을 때만 문서 작업으로 처리하며, 수정 대상 문서를 갱신한 뒤 `docs/current.md`를 `done`, 현재 담당을 사람으로 설정하고 종료한다. `docs/history/`는 실행 결과가 영구 기록일 때만 갱신한다.
+- `docs-only` 요청은 `build/lint/test`를 필수 검증으로 요구하지 않는다. 대신 문서 링크, 경로, 참조 문서 정합성 확인으로 마감한다.
 - 활성 구현 스펙이 이미 있으면 `docs-only`를 별도 흐름으로 열지 않고, 현재 활성 작업 범위 안에서 문서 갱신 여부를 판단한다.
 - 한 저장소에는 동시에 하나의 활성 구현 작업만 유지한다.
 
@@ -115,5 +116,6 @@ Claude가 handoff 스펙을 완성하면 작업 스펙의 `**상태**`와 `docs/
 ## 마감
 
 - 구현을 끝낸 에이전트는 검증 명령을 다시 실행한다.
+- `docs-only` 작업이면 위 검증 명령 대신 문서 무결성 확인 결과를 남긴다.
 - work spec의 `**상태**`와 `docs/current.md`를 `done`으로 갱신하고 현재 담당을 사람으로 맞춘 뒤, `docs/current.md`의 활성 스펙을 비운다.
 - 필요한 경우 `docs/history/`에 실행 결과를 남긴다.
